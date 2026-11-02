@@ -19,32 +19,35 @@ const StoreTemplate = ({
   attributes?: FilterAttribute[]
 }) => {
   return (
-    <div className="py-6 content-container" data-testid="category-container">
-      <div className="mb-8 text-2xl-semi">
-        <h1 data-testid="store-page-title">All products</h1>
-      </div>
-
-      <div className="flex flex-col small:flex-row small:items-start">
-        <InstantSearch
-          indexName={PRODUCT_INDEX_NAME}
-          searchClient={searchClient as unknown as SearchClient}
-          routing
-          future={{ preserveSharedStateOnUnmount: true }}
+    <div className="content-container py-10 small:py-14" data-testid="category-container">
+      <header className="mb-8 small:mb-10">
+        <h1
+          className="font-display text-[38px] font-normal leading-[1.1] small:text-[52px]"
+          data-testid="store-page-title"
         >
-          <Configure hitsPerPage={PRODUCT_LIMIT} />
-          <StoreRefinements
-            currencyCode={currencyCode}
-            attributes={attributes}
-          />
-          <div className="w-full min-w-0">
-            <StoreSearchBox />
-            <StoreHits
-              hitsPerPage={PRODUCT_LIMIT}
-              currencyCode={currencyCode}
-            />
-          </div>
-        </InstantSearch>
-      </div>
+          All jewellery
+        </h1>
+        <p className="mt-3 max-w-xl text-muted">
+          Rings, earrings, necklaces and bracelets, each in a choice of metals
+          and sizes.
+        </p>
+      </header>
+
+      <InstantSearch
+        indexName={PRODUCT_INDEX_NAME}
+        searchClient={searchClient as unknown as SearchClient}
+        routing
+        future={{ preserveSharedStateOnUnmount: true }}
+      >
+        <Configure hitsPerPage={PRODUCT_LIMIT} />
+        <StoreSearchBox />
+        <StoreRefinements currencyCode={currencyCode} attributes={attributes} />
+        <StoreHits
+          hitsPerPage={PRODUCT_LIMIT}
+          currencyCode={currencyCode}
+          attributes={attributes}
+        />
+      </InstantSearch>
     </div>
   )
 }

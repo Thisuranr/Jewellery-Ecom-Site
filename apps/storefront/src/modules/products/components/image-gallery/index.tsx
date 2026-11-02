@@ -1,39 +1,56 @@
 import { HttpTypes } from "@medusajs/types"
-import { Container } from "@modules/common/components/ui"
 import Image from "next/image"
+
+import Placeholder, {
+  PlaceholderType,
+} from "@modules/common/components/placeholder"
 
 type ImageGalleryProps = {
   images: HttpTypes.StoreProductImage[]
+  placeholderType?: PlaceholderType
 }
 
-const ImageGallery = ({ images }: ImageGalleryProps) => {
-  return (
-    <div className="flex items-start relative">
-      <div className="flex flex-col flex-1 small:mx-16 gap-y-4">
-        {images.map((image, index) => {
-          return (
-            <Container
-              key={image.id}
-              className="relative aspect-[29/34] w-full overflow-hidden bg-ui-bg-subtle"
-              id={image.id}
-            >
-              {!!image.url && (
-                <Image
-                  src={image.url}
-                  priority={index <= 2 ? true : false}
-                  className="absolute inset-0 rounded-rounded"
-                  alt={`Product image ${index + 1}`}
-                  fill
-                  sizes="(max-width: 576px) 280px, (max-width: 768px) 360px, (max-width: 992px) 480px, 800px"
-                  style={{
-                    objectFit: "cover",
-                  }}
-                />
-              )}
-            </Container>
-          )
-        })}
+/** Stacked images: the first full width, the rest in pairs from 640px. */
+const ImageGallery = ({
+  images,
+  placeholderType = "generic",
+}: ImageGalleryProps) => {
+  const shown = images.filter((image) => !!image.url)
+
+  if (!shown.length) {
+    return (
+      <div
+        className="relative aspect-[4/5] w-full overflow-hidden bg-surface"
+        data-testid="product-gallery"
+      >
+        <Placeholder type={placeholderType} fill />
       </div>
+    )
+  }
+
+  return (
+    <div
+      className="grid grid-cols-1 gap-3 sm:grid-cols-2"
+      data-testid="product-gallery"
+    >
+      {shown.map((image, index) => (
+        <div
+          key={image.id}
+          id={image.id}
+          className={`relative aspect-[4/5] w-full overflow-hidden bg-surface ${
+            index === 0 ? "sm:col-span-2" : ""
+          }`}
+        >
+          <Image
+            src={image.url}
+            priority={index <= 1}
+            alt={`Product image ${index + 1}`}
+            fill
+            sizes="(max-width: 1024px) 100vw, 55vw"
+            className="object-cover"
+          />
+        </div>
+      ))}
     </div>
   )
 }

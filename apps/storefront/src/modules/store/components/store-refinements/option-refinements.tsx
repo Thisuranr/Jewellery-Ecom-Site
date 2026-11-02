@@ -79,7 +79,7 @@ const OptionRefinements = () => {
             .filter((title) => !openTitles.includes(title))
         )
       }
-      className="flex flex-col gap-y-3 pr-6"
+      className="flex flex-col py-2"
     >
       {groups.map((group) => {
         const isOpen = !closedGroups.includes(group.title)
@@ -91,21 +91,23 @@ const OptionRefinements = () => {
           <Accordion.Item
             key={group.title}
             value={group.title}
-            className="overflow-hidden"
+            className="overflow-hidden border-b border-hairline last:border-b-0"
           >
             <Accordion.Header>
-              <Accordion.Trigger className="flex w-full items-center justify-between py-3 text-left">
+              <Accordion.Trigger className="flex w-full items-center justify-between py-4 text-left">
                 <div className="flex items-center gap-2">
-                  <span className="txt-compact-small-plus text-ui-fg-base">
+                  <span className="label text-ink">
                     {group.title}
                   </span>
-                  <span className="txt-compact-small-plus text-ui-fg-muted">
-                    ({selectedCount})
-                  </span>
+                  {selectedCount > 0 && (
+                    <span className="text-[13px] font-light text-muted">
+                      ({selectedCount})
+                    </span>
+                  )}
                 </div>
                 <span
                   className={clsx(
-                    "flex h-7 w-7 items-center justify-center text-ui-fg-muted transition-transform duration-150",
+                    "flex h-7 w-7 items-center justify-center text-muted transition-transform duration-150",
                     { "rotate-180": isOpen }
                   )}
                 >
@@ -121,18 +123,15 @@ const OptionRefinements = () => {
                     onClick={() => refine(value.value)}
                     aria-pressed={value.isRefined}
                     className={clsx(
-                      "border-ui-border-base border text-small-regular h-10 rounded-rounded px-3 flex items-center gap-x-1.5 transition-colors duration-150",
-                      {
-                        "border-ui-border-interactive text-ui-fg-base":
-                          value.isRefined,
-                        "text-ui-fg-muted hover:text-ui-fg-base":
-                          !value.isRefined,
-                      }
+                      "flex h-10 items-center gap-x-1.5 border px-3 text-[14px] font-light transition-colors duration-150",
+                      value.isRefined
+                        ? "border-ink bg-ink text-white"
+                        : "border-strong text-ink hover:border-ink"
                     )}
                     data-testid="option-refinement"
                   >
                     {value.label}
-                    <span className="text-ui-fg-muted">({value.count})</span>
+                    <span className={value.isRefined ? "text-white/70" : "text-muted"}>({value.count})</span>
                   </button>
                 ))}
               </div>

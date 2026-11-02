@@ -15,16 +15,18 @@ const Login = ({ setCurrentView }: Props) => {
 
   return (
     <div
-      className="max-w-sm w-full flex flex-col items-center"
+      className="flex w-full max-w-sm flex-col"
       data-testid="login-page"
     >
-      <h1 className="text-large-semi uppercase mb-6">Welcome back</h1>
-      <p className="text-center text-base-regular text-ui-fg-base mb-8">
-        Sign in to access an enhanced shopping experience.
+      <h1 className="mb-3 text-center font-display text-[38px] font-normal leading-tight">
+        Welcome back
+      </h1>
+      <p className="mb-10 text-center text-muted">
+        Sign in to see your orders and saved addresses.
       </p>
       {message?.state === "verification_required" && (
         <div
-          className="w-full mb-6 text-center text-base-regular text-ui-fg-base bg-ui-bg-subtle border border-ui-border-base rounded-rounded p-4"
+          className="mb-6 w-full bg-surface p-4 text-center text-[14px]"
           data-testid="login-verification-message"
         >
           We sent a verification link to <strong>{message.email}</strong>.
@@ -32,7 +34,7 @@ const Login = ({ setCurrentView }: Props) => {
         </div>
       )}
       <form className="w-full" action={formAction}>
-        <div className="flex flex-col w-full gap-y-2">
+        <div className="flex w-full flex-col gap-y-5">
           <Input
             label="Email"
             name="email"
@@ -55,22 +57,22 @@ const Login = ({ setCurrentView }: Props) => {
           error={message?.state === "error" ? message.error : null}
           data-testid="login-error-message"
         />
-        <SubmitButton data-testid="sign-in-button" className="w-full mt-6">
+        <SubmitButton data-testid="sign-in-button" size="large" className="mt-6 w-full">
           Sign in
         </SubmitButton>
       </form>
       <LocalizedClientLink
         href="/account/forgot-password"
-        className="underline text-ui-fg-base text-small-regular mt-4"
+        className="mt-5 self-center text-[14px] font-light text-muted underline decoration-strong underline-offset-4 hover:text-ink"
         data-testid="forgot-password-link"
       >
         Forgot password?
       </LocalizedClientLink>
-      <span className="text-center text-ui-fg-base text-small-regular mt-6">
+      <span className="mt-8 border-t border-hairline pt-6 text-center text-[14px] font-light text-muted">
         Not a member?{" "}
         <button
           onClick={() => setCurrentView(LOGIN_VIEW.REGISTER)}
-          className="underline"
+          className="text-ink underline underline-offset-4"
           data-testid="register-button"
         >
           Join us

@@ -15,7 +15,7 @@ const CartTotals: React.FC<CartTotalsProps> = ({ totals }) => {
 
   return (
     <div>
-      <div className="flex flex-col gap-y-2 txt-medium text-ui-fg-subtle ">
+      <div className="flex flex-col gap-y-3 text-[14px] text-muted">
         <div className="flex items-center justify-between">
           <span>Items</span>
           <span data-testid="cart-subtotal" data-value={items}>
@@ -26,7 +26,7 @@ const CartTotals: React.FC<CartTotalsProps> = ({ totals }) => {
           <div className="flex items-center justify-between">
             <span>Discount</span>
             <span
-              className="text-ui-fg-interactive"
+              className="text-ink"
               data-testid="cart-discount"
               data-value={discount}
             >
@@ -41,24 +41,24 @@ const CartTotals: React.FC<CartTotalsProps> = ({ totals }) => {
           </span>
         </div>
       </div>
-      <div className="h-px w-full border-b border-gray-200 my-4" />
-      <div className="flex items-center justify-between text-ui-fg-base mb-2 txt-medium ">
+      <div className="my-4 h-px w-full bg-hairline" />
+      <div className="mb-2 flex items-baseline justify-between text-[15px] text-ink">
         <span>Total</span>
         <span
-          className="txt-xlarge-plus"
+          className="text-[22px]"
           data-testid="cart-total"
           data-value={total}
         >
           {money(total)}
         </span>
       </div>
-      <div className="flex items-center justify-between txt-small text-ui-fg-subtle">
+      <div className="flex items-center justify-between text-[13px] text-muted">
         <span>Includes GST of</span>
         <span data-testid="cart-taxes" data-value={gst}>
           {money(gst)}
         </span>
       </div>
-      <div className="h-px w-full border-b border-gray-200 mt-4" />
+      
     </div>
   )
 }

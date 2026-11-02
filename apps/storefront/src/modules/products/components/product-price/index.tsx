@@ -18,41 +18,39 @@ export default function ProductPrice({
   const selectedPrice = variant ? variantPrice : cheapestPrice
 
   if (!selectedPrice) {
-    return <div className="block w-32 h-9 bg-gray-100 animate-pulse" />
+    return <div className="block h-9 w-32 animate-pulse bg-surface-dark" />
   }
 
+  const onSale = selectedPrice.price_type === "sale"
+
   return (
-    <div className="flex flex-col text-ui-fg-base">
-      <span
-        className={clx("text-xl-semi", {
-          "text-ui-fg-interactive": selectedPrice.price_type === "sale",
-        })}
-      >
-        {!variant && "From "}
-        <span
-          data-testid="product-price"
-          data-value={selectedPrice.calculated_price_number}
-        >
-          {selectedPrice.calculated_price}
+    <div className="flex flex-col gap-y-1 text-ink">
+      <div className="flex items-baseline gap-x-3">
+        <span className={clx("text-[24px] font-light", { "text-sale": onSale })}>
+          {!variant && <span className="mr-2 text-[15px] text-muted">From</span>}
+          <span
+            data-testid="product-price"
+            data-value={selectedPrice.calculated_price_number}
+          >
+            {selectedPrice.calculated_price}
+          </span>
         </span>
-      </span>
-      {selectedPrice.price_type === "sale" && (
-        <>
-          <p>
-            <span className="text-ui-fg-subtle">Original: </span>
+        {onSale && (
+          <>
             <span
-              className="line-through"
+              className="text-[15px] text-muted line-through"
               data-testid="original-product-price"
               data-value={selectedPrice.original_price_number}
             >
               {selectedPrice.original_price}
             </span>
-          </p>
-          <span className="text-ui-fg-interactive">
-            -{selectedPrice.percentage_diff}%
-          </span>
-        </>
-      )}
+            <span className="text-[13px] text-sale">
+              -{selectedPrice.percentage_diff}%
+            </span>
+          </>
+        )}
+      </div>
+      <p className="text-[12px] font-light text-muted">Includes GST</p>
     </div>
   )
 }

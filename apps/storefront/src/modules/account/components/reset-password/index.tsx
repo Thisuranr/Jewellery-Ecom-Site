@@ -21,7 +21,7 @@ const ResetPassword = () => {
         data-testid="reset-password-done"
       >
         <h1 className="text-large-semi uppercase mb-6">Password updated</h1>
-        <p className="text-center text-base-regular text-ui-fg-base mb-6">
+        <p className="text-center text-base-regular text-ink mb-6">
           Your password has been changed. You can now sign in with it.
         </p>
         <LocalizedClientLink
@@ -42,7 +42,7 @@ const ResetPassword = () => {
         data-testid="reset-password-invalid"
       >
         <h1 className="text-large-semi uppercase mb-6">Reset your password</h1>
-        <p className="text-center text-base-regular text-ui-fg-base mb-6">
+        <p className="text-center text-base-regular text-ink mb-6">
           This reset link is not valid. Please request a new one.
         </p>
         <LocalizedClientLink href="/account/forgot-password" className="underline">
@@ -58,7 +58,7 @@ const ResetPassword = () => {
       data-testid="reset-password-page"
     >
       <h1 className="text-large-semi uppercase mb-6">Choose a new password</h1>
-      <p className="text-center text-base-regular text-ui-fg-base mb-8">
+      <p className="text-center text-base-regular text-ink mb-8">
         for <strong>{email}</strong>
       </p>
       <form className="w-full" action={formAction}>

@@ -25,7 +25,7 @@ export default function Header({
       data-testid="site-header"
     >
       {/* Row 1: menu / wordmark / icons */}
-      <div className="content-container grid h-16 grid-cols-[1fr_auto_1fr] items-center small:h-20">
+      <div className="content-container grid h-16 grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center small:h-20">
         <div className="flex items-center">
           <div className="small:hidden">
             <MobileMenu
@@ -39,7 +39,7 @@ export default function Header({
 
         <LocalizedClientLink
           href="/"
-          className="whitespace-nowrap font-display text-[19px] font-normal uppercase leading-none tracking-[0.14em] sm:text-[22px] sm:tracking-[0.2em] text-ink small:text-[28px]"
+          className="whitespace-nowrap font-display text-[17px] font-normal uppercase leading-none tracking-[0.1em] sm:text-[22px] sm:tracking-[0.2em] text-ink small:text-[28px]"
           data-testid="nav-store-link"
         >
           {storeName}

@@ -4,6 +4,7 @@ import { HttpTypes } from "@medusajs/types"
 import { useSearchParams } from "next/navigation"
 import { useEffect, useMemo, useState } from "react"
 import ImageGallery from "."
+import type { PlaceholderType } from "@modules/common/components/placeholder"
 
 const getImagesForVariant = (
   product: HttpTypes.StoreProduct,
@@ -28,8 +29,10 @@ const getImagesForVariant = (
  */
 const VariantImageGallery = ({
   product,
+  placeholderType,
 }: {
   product: HttpTypes.StoreProduct
+  placeholderType?: PlaceholderType
 }) => {
   const searchParams = useSearchParams()
   const [isMounted, setIsMounted] = useState(false)
@@ -42,7 +45,7 @@ const VariantImageGallery = ({
     [product, variantId]
   )
 
-  return <ImageGallery images={images} />
+  return <ImageGallery images={images} placeholderType={placeholderType} />
 }
 
 export default VariantImageGallery

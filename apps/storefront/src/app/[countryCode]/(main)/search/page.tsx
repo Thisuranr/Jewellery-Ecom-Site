@@ -41,23 +41,23 @@ export default async function SearchPage(props: Props) {
     : { response: { products: [], count: 0 } }
 
   return (
-    <div className="content-container py-6" data-testid="search-container">
-      <h1 className="text-2xl-semi mb-6">
-        {query ? `Search results for "${query}"` : "Search"}
+    <div className="content-container py-10 small:py-14" data-testid="search-container">
+      <h1 className="mb-6 font-display text-[38px] font-normal leading-[1.1] small:text-[52px]">
+        {query ? `Results for “${query}”` : "Search"}
       </h1>
       <SearchForm countryCode={countryCode} defaultValue={query} className="mb-8 max-w-xl" />
       {query && (
-        <p className="text-small-regular text-ui-fg-subtle mb-6">
-          {response.count} {response.count === 1 ? "product" : "products"} found
+        <p className="mb-8 text-[13px] font-light text-muted">
+          {response.count} {response.count === 1 ? "piece" : "pieces"} found
         </p>
       )}
       {query && response.products.length === 0 ? (
-        <p className="text-ui-fg-subtle">
-          No products match your search. Try a different keyword.
+        <p className="py-10 text-muted">
+          No pieces match your search. Try a different keyword.
         </p>
       ) : (
         <ul
-          className="grid grid-cols-2 w-full small:grid-cols-3 medium:grid-cols-4 gap-x-6 gap-y-8"
+          className="grid w-full grid-cols-2 gap-x-3 gap-y-10 sm:grid-cols-3 sm:gap-x-5 medium:grid-cols-4 medium:gap-x-6"
           data-testid="search-results"
         >
           {response.products.map((product) => (

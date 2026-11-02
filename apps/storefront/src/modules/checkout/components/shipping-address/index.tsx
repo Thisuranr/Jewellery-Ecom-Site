@@ -98,7 +98,7 @@ const ShippingAddress = ({
     <>
       {customer && (addressesInRegion?.length || 0) > 0 && (
         <Container className="mb-6 flex flex-col gap-y-4 p-5">
-          <p className="text-small-regular">
+          <p className="text-[14px]">
             {`Hi ${customer.first_name}, do you want to use one of your saved addresses?`}
           </p>
           <AddressSelect
@@ -112,7 +112,7 @@ const ShippingAddress = ({
           />
         </Container>
       )}
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 gap-x-4 gap-y-5 sm:grid-cols-2">
         <Input
           label="First name"
           name="shipping_address.first_name"
@@ -131,6 +131,7 @@ const ShippingAddress = ({
           required
           data-testid="shipping-last-name-input"
         />
+        <div className="sm:col-span-2">
         <Input
           label="Address"
           name="shipping_address.address_1"
@@ -140,14 +141,17 @@ const ShippingAddress = ({
           required
           data-testid="shipping-address-input"
         />
+        </div>
+        <div className="sm:col-span-2">
         <Input
-          label="Company"
+          label="Company (optional)"
           name="shipping_address.company"
           value={formData["shipping_address.company"]}
           onChange={handleChange}
           autoComplete="organization"
           data-testid="shipping-company-input"
         />
+        </div>
         <Input
           label="Postal code"
           name="shipping_address.postal_code"
@@ -193,7 +197,7 @@ const ShippingAddress = ({
           data-testid="billing-address-checkbox"
         />
       </div>
-      <div className="grid grid-cols-2 gap-4 mb-4">
+      <div className="grid grid-cols-1 gap-x-4 gap-y-5 sm:grid-cols-2">
         <Input
           label="Email"
           name="email"

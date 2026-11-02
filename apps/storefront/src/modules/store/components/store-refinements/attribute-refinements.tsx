@@ -40,17 +40,17 @@ const AttributeRefinements = ({
   }
 
   return (
-    <div className="flex flex-col gap-y-6" data-testid="attribute-refinements">
+    <div className="flex flex-col divide-y divide-hairline" data-testid="attribute-refinements">
       {groups.map(({ attribute, options }) => (
         <div
           key={attribute.handle}
-          className="flex flex-col gap-y-3"
+          className="flex flex-col gap-y-4 py-6"
           data-testid={`attribute-refinement-${attribute.handle}`}
         >
-          <span className="txt-compact-small-plus text-ui-fg-subtle">
+          <span className="label text-ink">
             {attribute.label}
           </span>
-          <ul className="flex flex-col gap-y-2 pr-6">
+          <ul className="flex flex-col gap-y-2 ">
             {options.map(({ option, item }) => (
               <li key={option.value}>
                 <label className="flex cursor-pointer items-start gap-x-2">
@@ -58,18 +58,18 @@ const AttributeRefinements = ({
                     type="checkbox"
                     checked={item!.isRefined}
                     onChange={() => refine(option.value)}
-                    className="mt-1 shrink-0 accent-ui-fg-interactive"
+                    className="mt-1 h-4 w-4 shrink-0 accent-black"
                     data-testid={`attribute-option-${option.value}`}
                   />
                   <span
-                    className={clsx("text-small-regular min-w-0 break-words", {
-                      "text-ui-fg-base": item!.isRefined,
-                      "text-ui-fg-subtle": !item!.isRefined,
+                    className={clsx("text-[14px] font-light min-w-0 break-words", {
+                      "text-ink": item!.isRefined,
+                      "text-muted": !item!.isRefined,
                     })}
                   >
                     {option.label}
                   </span>
-                  <span className="text-small-regular shrink-0 text-ui-fg-muted">
+                  <span className="text-[14px] font-light shrink-0 text-muted">
                     ({item!.count})
                   </span>
                 </label>

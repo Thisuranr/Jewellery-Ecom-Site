@@ -1,4 +1,3 @@
-import { Label } from "@modules/common/components/ui"
 import React, { useEffect, useImperativeHandle, useState } from "react"
 
 import Eye from "@modules/common/icons/eye"
@@ -15,52 +14,66 @@ type InputProps = Omit<
   topLabel?: string
 }
 
+/**
+ * The one input style: label above, square field, hairline border that turns
+ * black on focus. Replaces the old floating label.
+ */
 const Input = React.forwardRef<HTMLInputElement, InputProps>(
-  ({ type, name, label, touched: _touched, required, topLabel, ...props }, ref) => {
+  (
+    {
+      type,
+      name,
+      label,
+      touched: _touched,
+      errors: _errors,
+      required,
+      topLabel: _topLabel,
+      className,
+      id,
+      ...props
+    },
+    ref
+  ) => {
     const inputRef = React.useRef<HTMLInputElement>(null)
     const [showPassword, setShowPassword] = useState(false)
     const [inputType, setInputType] = useState(type)
+    const inputId = id ?? name
 
     useEffect(() => {
-      if (type === "password" && showPassword) {
-        setInputType("text")
-      }
-
-      if (type === "password" && !showPassword) {
-        setInputType("password")
+      if (type === "password") {
+        setInputType(showPassword ? "text" : "password")
+      } else {
+        setInputType(type)
       }
     }, [type, showPassword])
 
     useImperativeHandle(ref, () => inputRef.current!)
 
     return (
-      <div className="flex flex-col w-full">
-        {topLabel && (
-          <Label className="mb-2 txt-compact-medium-plus">{topLabel}</Label>
-        )}
-        <div className="flex relative z-0 w-full txt-compact-medium">
+      <div className="flex w-full flex-col gap-y-1.5">
+        <label
+          htmlFor={inputId}
+          className="text-[12px] font-medium uppercase leading-4 tracking-[0.12em] text-muted"
+        >
+          {label}
+          {required && <span aria-hidden> *</span>}
+        </label>
+        <div className="relative flex w-full">
           <input
+            id={inputId}
             type={inputType}
             name={name}
-            placeholder=" "
             required={required}
-            className="pt-4 pb-1 block w-full h-11 px-4 mt-0 bg-ui-bg-field border rounded-md appearance-none focus:outline-none focus:ring-0 focus:shadow-borders-interactive-with-active border-ui-border-base hover:bg-ui-bg-field-hover"
+            className={`field ${type === "password" ? "pr-11" : ""} ${className ?? ""}`}
             {...props}
             ref={inputRef}
           />
-          <label
-            htmlFor={name}
-            onClick={() => inputRef.current?.focus()}
-            className="flex items-center justify-center mx-3 px-1 transition-all absolute duration-300 top-3 -z-1 origin-0 text-ui-fg-subtle"
-          >
-            {label}
-            {required && <span className="text-rose-500">*</span>}
-          </label>
           {type === "password" && (
             <button
               type="button"
               onClick={() => setShowPassword(!showPassword)}
-              className="text-ui-fg-subtle px-4 focus:outline-none transition-all duration-150 outline-none focus:text-ui-fg-base absolute right-0 top-3"
+              aria-label={showPassword ? "Hide password" : "Show password"}
+              className="absolute right-0 top-0 flex h-12 w-11 items-center justify-center text-muted outline-none transition-colors hover:text-ink focus-visible:text-ink"
             >
               {showPassword ? <Eye /> : <EyeOff />}
             </button>

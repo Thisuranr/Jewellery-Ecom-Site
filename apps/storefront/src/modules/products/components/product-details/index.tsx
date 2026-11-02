@@ -51,19 +51,23 @@ const ProductDetails = async ({ productId }: { productId: string }) => {
 
   return (
     <section data-testid="product-details" className="flex flex-col gap-y-4">
-      <h2 className="text-base-semi">Details</h2>
+      <h2 className="label">Details</h2>
       {groups.map((group) => (
         <div key={group.handle} data-testid={`product-details-${group.handle}`}>
-          <h3 className="text-small-semi text-ui-fg-base mb-1">
+          <h3 className="mb-2 text-[12px] font-medium uppercase tracking-[0.12em] text-muted">
             {GROUP_LABELS[group.handle] ?? titleCase(group.handle)}
           </h3>
-          <ul className="text-small-regular text-ui-fg-subtle flex flex-col gap-y-1">
+          <dl className="divide-y divide-hairline border-y border-hairline text-[14px]">
             {group.attributes.map((attribute) => (
-              <li key={attribute.handle}>
-                {attribute.label}: {formatAttributeValue(attribute)}
-              </li>
+              <div
+                key={attribute.handle}
+                className="grid grid-cols-[40%_1fr] gap-x-4 py-2.5"
+              >
+                <dt className="font-light text-muted">{attribute.label}</dt>
+                <dd className="font-normal">{formatAttributeValue(attribute)}</dd>
+              </div>
             ))}
-          </ul>
+          </dl>
         </div>
       ))}
     </section>

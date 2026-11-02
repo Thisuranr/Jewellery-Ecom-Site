@@ -47,11 +47,11 @@ const AddAddress = ({
   return (
     <>
       <button
-        className="border border-ui-border-base rounded-rounded p-5 min-h-[220px] h-full w-full flex flex-col justify-between"
+        className="flex h-full min-h-[200px] w-full flex-col justify-between border border-dashed border-strong p-5 text-left transition-colors hover:border-ink"
         onClick={open}
         data-testid="add-address-button"
       >
-        <span className="text-base-semi">New address</span>
+        <span className="label">New address</span>
         <Plus />
       </button>
 
@@ -61,8 +61,8 @@ const AddAddress = ({
         </Modal.Title>
         <form action={formAction}>
           <Modal.Body>
-            <div className="flex flex-col gap-y-2">
-              <div className="grid grid-cols-2 gap-x-2">
+            <div className="flex w-full flex-col gap-y-4 pt-4">
+              <div className="grid grid-cols-2 gap-x-3">
                 <Input
                   label="First name"
                   name="first_name"
@@ -97,7 +97,7 @@ const AddAddress = ({
                 autoComplete="address-line2"
                 data-testid="address-2-input"
               />
-              <div className="grid grid-cols-[144px_1fr] gap-x-2">
+              <div className="grid grid-cols-[130px_1fr] gap-x-3">
                 <Input
                   label="Postal code"
                   name="postal_code"
@@ -135,7 +135,7 @@ const AddAddress = ({
             </div>
             {formState.error && (
               <div
-                className="text-rose-500 text-small-regular py-2"
+                className="text-[#b42318] text-[13px] py-2"
                 data-testid="address-error"
               >
                 {formState.error}

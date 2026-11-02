@@ -25,6 +25,7 @@ module.exports = {
         ink: "#111111",
         muted: "#6B6760",
         hairline: "#E7E3DC",
+        strong: "#CFC9BD",
         accent: "#B08D57",
         sale: "#9B2C2C",
         grey: {

@@ -86,23 +86,11 @@ const CurrentRefinements = ({ currencyCode }: { currencyCode: string }) => {
   }
 
   return (
-    <div className="flex flex-col gap-y-3" data-testid="current-refinements">
-      <div className="flex items-center justify-between gap-x-2 pr-6">
-        <span className="txt-compact-small-plus text-ui-fg-subtle">
-          Applied filters
-        </span>
-        {canClearAll && (
-          <button
-            onClick={clearAll}
-            className="txt-compact-small-plus text-ui-fg-interactive hover:text-ui-fg-interactive-hover"
-            data-testid="clear-refinements"
-          >
-            Clear all
-          </button>
-        )}
-      </div>
-
-      <ul className="flex flex-wrap gap-2 pr-6">
+    <div
+      className="flex flex-wrap items-center gap-x-2 gap-y-2"
+      data-testid="current-refinements"
+    >
+      <ul className="contents">
         {refinements.map((refinement) => {
           const label = refinementLabel(refinement, currencyCode)
 
@@ -115,16 +103,25 @@ const CurrentRefinements = ({ currencyCode }: { currencyCode: string }) => {
               <button
                 onClick={() => refine(refinement)}
                 aria-label={`Remove filter ${label}`}
-                className="border-ui-border-interactive text-ui-fg-base border text-small-regular h-8 rounded-rounded px-3 flex items-center gap-x-1.5 transition-colors duration-150 hover:bg-ui-bg-base-hover"
+                className="flex h-9 items-center gap-x-2 border border-strong bg-white px-3 text-[13px] font-light text-ink transition-colors duration-150 hover:border-ink"
                 data-testid="remove-refinement"
               >
                 {label}
-                <XMarkMini className="text-ui-fg-muted" />
+                <XMarkMini className="text-muted" />
               </button>
             </li>
           )
         })}
       </ul>
+      {canClearAll && (
+        <button
+          onClick={clearAll}
+          className="ml-1 text-[13px] font-light text-muted underline decoration-strong underline-offset-4 transition-colors hover:text-ink hover:decoration-ink"
+          data-testid="clear-refinements"
+        >
+          Clear all
+        </button>
+      )}
     </div>
   )
 }

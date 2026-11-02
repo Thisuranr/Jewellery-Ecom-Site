@@ -2,13 +2,16 @@
 
 import type { Hit } from "instantsearch.js"
 import { useEffect, useRef } from "react"
-import { useHits, useInstantSearch } from "react-instantsearch"
+import {
+  useClearRefinements,
+  useHits,
+  useInstantSearch,
+} from "react-instantsearch"
 
 import useSearchSettled from "@lib/hooks/use-search-settled"
-import LocalizedClientLink from "@modules/common/components/localized-client-link"
-import { Text } from "@modules/common/components/ui"
+import type { FilterAttribute } from "@lib/util/filter-attributes"
+import ProductCard from "@modules/products/components/product-card"
 import { placeholderTypeFromText } from "@modules/common/components/placeholder"
-import Thumbnail from "@modules/products/components/thumbnail"
 import SkeletonProductGrid from "@modules/skeletons/templates/skeleton-product-grid"
 import SearchPagination from "./pagination"
 import HitPrice, { HitPricing } from "./price"
@@ -24,9 +27,27 @@ type ProductHit = Hit<
 type StoreHitsProps = {
   hitsPerPage: number
   currencyCode: string
+  attributes?: FilterAttribute[]
 }
 
-const StoreHits = ({ hitsPerPage, currencyCode }: StoreHitsProps) => {
+/** "material_type:gold_plated" -> "Gold plated", using the attribute's own labels. */
+const materialOf = (attr: unknown, labels: Map<string, string>) => {
+  if (!Array.isArray(attr)) return null
+  const value = (attr as string[]).find((a) => labels.has(a))
+  return value ? labels.get(value)! : null
+}
+
+const StoreHits = ({
+  hitsPerPage,
+  currencyCode,
+  attributes = [],
+}: StoreHitsProps) => {
+  const { canRefine: canClear, refine: clearAll } = useClearRefinements()
+  const materialLabels = new Map(
+    attributes
+      .filter((a) => a.handle === "material_type")
+      .flatMap((a) => a.options.map((o) => [o.value, o.label] as const))
+  )
   const { items } = useHits<ProductHit>()
   const { status, error, indexUiState } = useInstantSearch()
   const { isSearching, hasNoResultsYet } = useSearchSettled()
@@ -51,13 +72,13 @@ const StoreHits = ({ hitsPerPage, currencyCode }: StoreHitsProps) => {
 
   if (status === "error") {
     return (
-      <Text
-        className="py-16 text-center text-ui-fg-error"
+      <p
+        className="py-16 text-center text-[#b42318]"
         data-testid="products-error"
       >
         Couldn&apos;t load products
         {error?.message ? `: ${error.message}` : "."}
-      </Text>
+      </p>
     )
   }
 
@@ -66,45 +87,48 @@ const StoreHits = ({ hitsPerPage, currencyCode }: StoreHitsProps) => {
       {showSkeleton ? (
         <SkeletonProductGrid numberOfProducts={hitsPerPage} />
       ) : !items.length ? (
-        <Text
-          className="py-16 text-center text-ui-fg-subtle"
+        <div
+          className="flex flex-col items-center gap-y-5 py-24 text-center"
           data-testid="no-products"
         >
-          No products matched these filters.
-        </Text>
+          <p className="font-display text-[28px] leading-tight">
+            No pieces match these filters
+          </p>
+          <p className="max-w-sm text-muted">
+            Try removing a filter or two to see more of the collection.
+          </p>
+          {canClear && (
+            <button
+              type="button"
+              onClick={() => clearAll()}
+              className="btn-outline"
+              data-testid="empty-clear-filters"
+            >
+              Clear filters
+            </button>
+          )}
+        </div>
       ) : (
         <ul
-          className="grid grid-cols-2 w-full small:grid-cols-3 medium:grid-cols-4 gap-x-6 gap-y-8"
+          className="grid w-full grid-cols-2 gap-x-3 gap-y-10 sm:grid-cols-3 sm:gap-x-5 medium:grid-cols-4 medium:gap-x-6"
           data-testid="products-list"
         >
           {items.map((hit) =>
             hit.handle ? (
               <li key={hit.objectID}>
-                <LocalizedClientLink
+                <ProductCard
                   href={`/products/${hit.handle}`}
-                  className="group"
-                >
-                  <div data-testid="product-wrapper">
-                    <Thumbnail
-                      thumbnail={hit.thumbnail}
-                      size="full"
-                      placeholderType={placeholderTypeFromText(
-                        ...(Array.isArray(hit.category)
-                          ? (hit.category as string[])
-                          : [])
-                      )}
-                    />
-                    <div className="flex mt-4 justify-between gap-x-3 text-[14px] leading-6">
-                      <Text
-                        className="text-ink font-normal text-[14px] leading-6"
-                        data-testid="product-title"
-                      >
-                        {hit.title}
-                      </Text>
-                      <HitPrice hit={hit} currencyCode={currencyCode} />
-                    </div>
-                  </div>
-                </LocalizedClientLink>
+                  title={hit.title ?? ""}
+                  thumbnail={hit.thumbnail}
+                  placeholderType={placeholderTypeFromText(
+                    hit.title,
+                    ...(Array.isArray(hit.category)
+                      ? (hit.category as string[])
+                      : [])
+                  )}
+                  material={materialOf(hit.attr, materialLabels)}
+                  price={<HitPrice hit={hit} currencyCode={currencyCode} />}
+                />
               </li>
             ) : null
           )}

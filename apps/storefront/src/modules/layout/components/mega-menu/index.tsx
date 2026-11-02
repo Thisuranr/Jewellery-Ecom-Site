@@ -245,7 +245,7 @@ export default function MegaMenu({
         <div
           id={`mega-${id}`}
           className={clx(
-            "absolute inset-x-0 top-full border-b border-hairline bg-white transition-[opacity,visibility] duration-200 ease-out",
+            "absolute inset-x-0 top-full border-b border-strong bg-white transition-[opacity,visibility] duration-200 ease-out",
             open ? "visible opacity-100" : "invisible opacity-0"
           )}
           data-testid={`mega-panel-${id}`}
@@ -261,6 +261,14 @@ export default function MegaMenu({
       ref={rootRef}
       className="flex items-center justify-center gap-x-5 medium:gap-x-8"
     >
+      {/* Very light dim under the open panel so it separates from the page. */}
+      <li
+        aria-hidden
+        className={clx(
+          "pointer-events-none absolute inset-x-0 top-full h-screen bg-black/[0.10] transition-[opacity,visibility] duration-200 ease-out",
+          activeId ? "visible opacity-100" : "invisible opacity-0"
+        )}
+      />
       <li>
         <LocalizedClientLink
           href={`/store?${NEWEST_QUERY}`}

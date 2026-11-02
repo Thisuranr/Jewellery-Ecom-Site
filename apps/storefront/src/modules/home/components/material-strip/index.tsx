@@ -7,7 +7,8 @@ const BLURBS: Record<string, string> = {
   "material_type:sterling_silver": "925 sterling silver.",
   "material_type:solid_gold": "Gold all the way through.",
 }
-const TONES = ["#F3ECDD", "#EEF0F2", "#F1E6C9"]
+// Near the surface colour, with a hint of gold / silver.
+const TONES = ["#F4EEE2", "#F1F1EF", "#F3EAD6"]
 
 export default function MaterialStrip({
   materials,

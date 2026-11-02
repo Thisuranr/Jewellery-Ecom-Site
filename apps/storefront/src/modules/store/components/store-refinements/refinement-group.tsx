@@ -20,11 +20,11 @@ const RefinementGroup = ({ attribute, title }: RefinementGroupProps) => {
   }
 
   return (
-    <div className="flex flex-col gap-y-3">
-      <span className="txt-compact-small-plus text-ui-fg-subtle">
+    <div className="flex flex-col gap-y-4 py-6">
+      <span className="label text-ink">
         {title}
       </span>
-      <ul className="flex flex-col gap-y-2 pr-6">
+      <ul className="flex flex-col gap-y-2 ">
         {items.map((item) => (
           <li key={item.value}>
             <label className="flex cursor-pointer items-start gap-x-2">
@@ -32,18 +32,18 @@ const RefinementGroup = ({ attribute, title }: RefinementGroupProps) => {
                 type="checkbox"
                 checked={item.isRefined}
                 onChange={() => refine(item.value)}
-                className="mt-1 shrink-0 accent-ui-fg-interactive"
+                className="mt-1 h-4 w-4 shrink-0 accent-black"
                 data-testid={`refinement-${attribute}`}
               />
               <span
-                className={clsx("text-small-regular min-w-0 break-words", {
-                  "text-ui-fg-base": item.isRefined,
-                  "text-ui-fg-subtle": !item.isRefined,
+                className={clsx("text-[14px] font-light min-w-0 break-words", {
+                  "text-ink": item.isRefined,
+                  "text-muted": !item.isRefined,
                 })}
               >
                 {item.label}
               </span>
-              <span className="text-small-regular shrink-0 text-ui-fg-muted">
+              <span className="text-[14px] font-light shrink-0 text-muted">
                 ({item.count})
               </span>
             </label>

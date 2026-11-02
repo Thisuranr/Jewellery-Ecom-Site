@@ -24,27 +24,27 @@ const CategoryListing = ({
   attributes: FilterAttribute[]
 }) => {
   return (
-    <div className="flex flex-col small:flex-row small:items-start">
-      <InstantSearch
-        indexName={PRODUCT_INDEX_NAME}
-        searchClient={searchClient as unknown as SearchClient}
-        routing
-        future={{ preserveSharedStateOnUnmount: true }}
-      >
-        <Configure
-          hitsPerPage={PRODUCT_LIMIT}
-          facetFilters={[`category_ids:${categoryId}`]}
-        />
-        <StoreRefinements
-          currencyCode={currencyCode}
-          attributes={attributes}
-          hideCategory
-        />
-        <div className="w-full min-w-0">
-          <StoreHits hitsPerPage={PRODUCT_LIMIT} currencyCode={currencyCode} />
-        </div>
-      </InstantSearch>
-    </div>
+    <InstantSearch
+      indexName={PRODUCT_INDEX_NAME}
+      searchClient={searchClient as unknown as SearchClient}
+      routing
+      future={{ preserveSharedStateOnUnmount: true }}
+    >
+      <Configure
+        hitsPerPage={PRODUCT_LIMIT}
+        facetFilters={[`category_ids:${categoryId}`]}
+      />
+      <StoreRefinements
+        currencyCode={currencyCode}
+        attributes={attributes}
+        hideCategory
+      />
+      <StoreHits
+        hitsPerPage={PRODUCT_LIMIT}
+        currencyCode={currencyCode}
+        attributes={attributes}
+      />
+    </InstantSearch>
   )
 }
 

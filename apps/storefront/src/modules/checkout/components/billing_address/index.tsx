@@ -29,7 +29,7 @@ const BillingAddress = ({ cart }: { cart: HttpTypes.StoreCart | null }) => {
 
   return (
     <>
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 gap-x-4 gap-y-5 sm:grid-cols-2">
         <Input
           label="First name"
           name="billing_address.first_name"
@@ -48,6 +48,7 @@ const BillingAddress = ({ cart }: { cart: HttpTypes.StoreCart | null }) => {
           required
           data-testid="billing-last-name-input"
         />
+        <div className="sm:col-span-2">
         <Input
           label="Address"
           name="billing_address.address_1"
@@ -57,14 +58,17 @@ const BillingAddress = ({ cart }: { cart: HttpTypes.StoreCart | null }) => {
           required
           data-testid="billing-address-input"
         />
+        </div>
+        <div className="sm:col-span-2">
         <Input
-          label="Company"
+          label="Company (optional)"
           name="billing_address.company"
           value={formData["billing_address.company"]}
           onChange={handleChange}
           autoComplete="organization"
           data-testid="billing-company-input"
         />
+        </div>
         <Input
           label="Postal code"
           name="billing_address.postal_code"

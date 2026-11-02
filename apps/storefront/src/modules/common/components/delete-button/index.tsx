@@ -1,6 +1,5 @@
 import { deleteLineItem } from "@lib/data/cart"
 import { notifyCartUpdated } from "@lib/util/cart-events"
-import { Spinner, Trash } from "@medusajs/icons"
 import { clx } from "@modules/common/components/ui"
 import { useState } from "react"
 
@@ -8,10 +7,12 @@ const DeleteButton = ({
   id,
   children,
   className,
+  "data-testid": testId,
 }: {
   id: string
   children?: React.ReactNode
   className?: string
+  "data-testid"?: string
 }) => {
   const [isDeleting, setIsDeleting] = useState(false)
 
@@ -25,18 +26,15 @@ const DeleteButton = ({
   }
 
   return (
-    <div
-      className={clx(
-        "flex items-center justify-between text-small-regular",
-        className
-      )}
-    >
+    <div className={clx("flex items-center", className)}>
       <button
-        className="flex gap-x-1 text-ui-fg-subtle hover:text-ui-fg-base cursor-pointer"
+        type="button"
+        className="text-[13px] font-light text-muted underline decoration-hairline underline-offset-4 transition-colors hover:text-ink hover:decoration-ink disabled:opacity-50"
         onClick={() => handleDelete(id)}
+        disabled={isDeleting}
+        data-testid={testId}
       >
-        {isDeleting ? <Spinner className="animate-spin" /> : <Trash />}
-        <span>{children}</span>
+        {isDeleting ? "Removing..." : children ?? "Remove"}
       </button>
     </div>
   )

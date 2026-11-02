@@ -5,6 +5,7 @@ import { Heading, Text, clx } from "@modules/common/components/ui"
 import PaymentButton from "../payment-button"
 import { useSearchParams } from "next/navigation"
 import { HttpTypes } from "@medusajs/types"
+import { STORE_NAME } from "@lib/store-name"
 
 const Review = ({ cart }: { cart: HttpTypes.StoreCart }) => {
   const searchParams = useSearchParams()
@@ -26,7 +27,7 @@ const Review = ({ cart }: { cart: HttpTypes.StoreCart }) => {
         <Heading
           level="h2"
           className={clx(
-            "flex flex-row text-3xl-regular gap-x-2 items-baseline",
+            "flex flex-row font-display !font-normal leading-tight text-[28px] gap-x-2 items-baseline",
             {
               "opacity-50 pointer-events-none select-none": !isOpen,
             }
@@ -37,13 +38,12 @@ const Review = ({ cart }: { cart: HttpTypes.StoreCart }) => {
       </div>
       {isOpen && previousStepsCompleted && (
         <>
-          <div className="flex items-start gap-x-1 w-full mb-6">
+          <div className="flex items-start gap-x-6 w-full mb-6">
             <div className="w-full">
-              <Text className="txt-medium-plus text-ui-fg-base mb-1">
+              <Text className="text-[13px] font-light leading-6 text-muted">
                 By clicking the Place Order button, you confirm that you have
                 read, understand and accept our Terms of Use, Terms of Sale and
-                Returns Policy and acknowledge that you have read Medusa
-                Store&apos;s Privacy Policy.
+                Returns Policy and acknowledge that you have read {STORE_NAME}&apos;s Privacy Policy.
               </Text>
             </div>
           </div>

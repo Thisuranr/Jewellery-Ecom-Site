@@ -20,43 +20,34 @@ const LineItemPrice = ({
   const hasReducedPrice = currentPrice < originalPrice
 
   return (
-    <div className="flex flex-col gap-x-2 text-ui-fg-subtle items-end">
-      <div className="text-left">
-        {hasReducedPrice && (
-          <>
-            <p>
-              {style === "default" && (
-                <span className="text-ui-fg-subtle">Original: </span>
-              )}
-              <span
-                className="line-through text-ui-fg-muted"
-                data-testid="product-original-price"
-              >
-                {convertToLocale({
-                  amount: originalPrice,
-                  currency_code: currencyCode,
-                })}
-              </span>
-            </p>
-            {style === "default" && (
-              <span className="text-ui-fg-interactive">
-                -{getPercentageDiff(originalPrice, currentPrice || 0)}%
-              </span>
-            )}
-          </>
-        )}
+    <div className="flex flex-col items-end text-ink">
+      {hasReducedPrice && (
         <span
-          className={clx("text-base-regular", {
-            "text-ui-fg-interactive": hasReducedPrice,
-          })}
-          data-testid="product-price"
+          className="text-[13px] text-muted line-through"
+          data-testid="product-original-price"
         >
           {convertToLocale({
-            amount: currentPrice,
+            amount: originalPrice,
             currency_code: currencyCode,
           })}
         </span>
-      </div>
+      )}
+      <span
+        className={clx("text-[15px] font-normal", {
+          "text-sale": hasReducedPrice,
+        })}
+        data-testid="product-price"
+      >
+        {convertToLocale({
+          amount: currentPrice,
+          currency_code: currencyCode,
+        })}
+      </span>
+      {hasReducedPrice && style === "default" && (
+        <span className="text-[12px] text-sale">
+          -{getPercentageDiff(originalPrice, currentPrice || 0)}%
+        </span>
+      )}
     </div>
   )
 }

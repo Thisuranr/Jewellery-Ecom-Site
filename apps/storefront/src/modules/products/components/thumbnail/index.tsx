@@ -9,6 +9,8 @@ import Placeholder, {
 type ThumbnailProps = {
   thumbnail?: string | null
   images?: { url?: string }[] | null
+  /** Shown on hover (parent needs the `group` class), e.g. the second photo. */
+  hoverImage?: string | null
   size?: "small" | "medium" | "large" | "full" | "square"
   isFeatured?: boolean
   className?: string
@@ -21,6 +23,7 @@ type ThumbnailProps = {
 const Thumbnail: React.FC<ThumbnailProps> = ({
   thumbnail,
   images,
+  hoverImage,
   size = "small",
   className,
   alt = "",
@@ -57,6 +60,17 @@ const Thumbnail: React.FC<ThumbnailProps> = ({
         />
       ) : (
         <Placeholder type={placeholderType} fill />
+      )}
+      {initialImage && hoverImage && hoverImage !== initialImage && (
+        <Image
+          src={hoverImage}
+          alt=""
+          className="absolute inset-0 object-cover object-center opacity-0 transition-opacity duration-500 ease-out group-hover:opacity-100"
+          draggable={false}
+          quality={50}
+          sizes="(max-width: 576px) 280px, (max-width: 768px) 360px, (max-width: 992px) 480px, 800px"
+          fill
+        />
       )}
     </div>
   )

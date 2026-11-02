@@ -79,7 +79,7 @@ const EditAddress: React.FC<EditAddressProps> = ({
           </Heading>
           {address.company && (
             <Text
-              className="txt-compact-small text-ui-fg-base"
+              className="txt-compact-small text-ink"
               data-testid="address-company"
             >
               {address.company}
@@ -101,7 +101,7 @@ const EditAddress: React.FC<EditAddressProps> = ({
         </div>
         <div className="flex items-center gap-x-4">
           <button
-            className="text-small-regular text-ui-fg-base flex items-center gap-x-2"
+            className="text-small-regular text-ink flex items-center gap-x-2"
             onClick={open}
             data-testid="address-edit-button"
           >
@@ -109,7 +109,7 @@ const EditAddress: React.FC<EditAddressProps> = ({
             Edit
           </button>
           <button
-            className="text-small-regular text-ui-fg-base flex items-center gap-x-2"
+            className="text-small-regular text-ink flex items-center gap-x-2"
             onClick={removeAddress}
             data-testid="address-delete-button"
           >
@@ -126,8 +126,8 @@ const EditAddress: React.FC<EditAddressProps> = ({
         <form action={formAction}>
           <input type="hidden" name="addressId" value={address.id} />
           <Modal.Body>
-            <div className="grid grid-cols-1 gap-y-2">
-              <div className="grid grid-cols-2 gap-x-2">
+            <div className="grid w-full grid-cols-1 gap-y-4 pt-4">
+              <div className="grid grid-cols-2 gap-x-3">
                 <Input
                   label="First name"
                   name="first_name"
@@ -167,7 +167,7 @@ const EditAddress: React.FC<EditAddressProps> = ({
                 defaultValue={address.address_2 || undefined}
                 data-testid="address-2-input"
               />
-              <div className="grid grid-cols-[144px_1fr] gap-x-2">
+              <div className="grid grid-cols-[130px_1fr] gap-x-3">
                 <Input
                   label="Postal code"
                   name="postal_code"
@@ -209,7 +209,7 @@ const EditAddress: React.FC<EditAddressProps> = ({
               />
             </div>
             {formState.error && (
-              <div className="text-rose-500 text-small-regular py-2">
+              <div className="text-[#b42318] text-[13px] py-2">
                 {formState.error}
               </div>
             )}

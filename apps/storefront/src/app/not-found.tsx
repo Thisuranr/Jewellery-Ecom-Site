@@ -1,26 +1,27 @@
-import { ArrowUpRightMini } from "@medusajs/icons"
-import { Text } from "@modules/common/components/ui"
 import { Metadata } from "next"
+
 import Link from "next/link"
 
 export const metadata: Metadata = {
-  title: "404",
-  description: "Something went wrong",
+  title: "Page not found",
+  description: "The page you tried to access does not exist.",
 }
 
 export default function NotFound() {
   return (
-    <div className="flex flex-col gap-4 items-center justify-center min-h-[calc(100vh-64px)]">
-      <h1 className="text-2xl-semi text-ui-fg-base">Page not found</h1>
-      <p className="text-small-regular text-ui-fg-base">
-        The page you tried to access does not exist.
+    <div
+      className="flex min-h-[60vh] flex-col items-center justify-center gap-y-4 px-4 py-24 text-center"
+      data-testid="not-found"
+    >
+      <p className="label text-muted">404</p>
+      <h1 className="font-display text-[38px] font-normal leading-tight small:text-[52px]">
+        Page not found
+      </h1>
+      <p className="mb-4 max-w-md text-muted">
+        The page you tried to reach does not exist, or has moved.
       </p>
-      <Link className="flex gap-x-1 items-center group" href="/">
-        <Text className="text-ui-fg-interactive">Go to frontpage</Text>
-        <ArrowUpRightMini
-          className="group-hover:rotate-45 ease-in-out duration-150"
-          color="var(--fg-interactive)"
-        />
+      <Link href="/" className="label inline-flex items-center gap-x-2 text-ink link-fade">
+        Back to the home page <span aria-hidden>&rarr;</span>
       </Link>
     </div>
   )

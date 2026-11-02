@@ -12,6 +12,7 @@ type OptionSelectProps = {
   "data-testid"?: string
 }
 
+/** Square outlined chips; the selected one is filled black. */
 const OptionSelect: React.FC<OptionSelectProps> = ({
   option,
   current,
@@ -21,19 +22,23 @@ const OptionSelect: React.FC<OptionSelectProps> = ({
   "data-testid": dataTestId,
   disabled,
 }) => {
-  const filteredOptions = (option.values ?? []).map((v) => v.value)
+  const values = (option.values ?? []).map((v) => v.value)
 
   return (
     <fieldset className="flex flex-col gap-y-3" disabled={disabled}>
-      <legend className="text-sm mb-3">Select {title}</legend>
-      <div
-        className="flex flex-wrap justify-between gap-2"
-        data-testid={dataTestId}
-      >
-        {filteredOptions.map((v) => {
+      <legend className="mb-3 flex items-baseline gap-x-2 text-[12px] font-medium uppercase leading-4 tracking-[0.12em]">
+        <span>{title}</span>
+        {current && (
+          <span className="font-light normal-case tracking-normal text-muted">
+            {current}
+          </span>
+        )}
+      </legend>
+      <div className="flex flex-wrap gap-2" data-testid={dataTestId}>
+        {values.map((v) => {
           const id = `${name}-${v}`.replace(/[^A-Za-z0-9_-]/g, "-")
           return (
-            <div key={v} className="flex-1">
+            <div key={v}>
               <input
                 type="radio"
                 id={id}
@@ -46,12 +51,10 @@ const OptionSelect: React.FC<OptionSelectProps> = ({
               <label
                 htmlFor={id}
                 className={clx(
-                  "flex items-center justify-center cursor-pointer border-ui-border-base bg-ui-bg-subtle border text-small-regular h-10 rounded-rounded p-2 peer-focus-visible:ring-2 peer-focus-visible:ring-offset-1 peer-disabled:cursor-not-allowed",
-                  {
-                    "border-ui-border-interactive": v === current,
-                    "hover:shadow-elevation-card-rest transition-shadow ease-in-out duration-150":
-                      v !== current,
-                  }
+                  "flex h-11 min-w-[48px] cursor-pointer items-center justify-center border px-4 text-[14px] font-normal transition-colors duration-150 peer-focus-visible:outline peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-accent peer-disabled:cursor-not-allowed peer-disabled:opacity-50",
+                  v === current
+                    ? "border-ink bg-ink text-white"
+                    : "border-strong bg-white text-ink hover:border-ink"
                 )}
                 data-testid="option-button"
               >

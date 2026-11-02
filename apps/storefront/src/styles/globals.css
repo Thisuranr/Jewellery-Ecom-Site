@@ -17,15 +17,6 @@
     scrollbar-width: none; /* Firefox */
   }
 
-  input:focus ~ label,
-  input:not(:placeholder-shown) ~ label {
-    @apply -translate-y-2 text-xsmall-regular;
-  }
-
-  input:focus ~ label {
-    @apply left-0;
-  }
-
   input:-webkit-autofill,
   input:-webkit-autofill:hover,
   input:-webkit-autofill:focus,
@@ -184,6 +175,17 @@
 
   .btn-outline {
     @apply inline-flex items-center justify-center bg-transparent text-ink font-medium uppercase text-[12px] tracking-label px-8 h-12 border border-ink transition-colors duration-200 ease-out hover:bg-surface;
+  }
+
+  /* The one input style: square, hairline, black on focus. Label sits above. */
+  .field {
+    @apply block h-12 w-full appearance-none rounded-none border border-strong bg-white px-4 text-[15px] font-light text-ink placeholder:text-muted/70 transition-colors duration-150 hover:border-ink/60 focus:border-ink focus:outline-none focus:ring-0;
+  }
+  .field[aria-invalid="true"] {
+    @apply border-[#b42318];
+  }
+  textarea.field {
+    @apply h-auto min-h-[140px] py-3;
   }
 
   .link-fade {

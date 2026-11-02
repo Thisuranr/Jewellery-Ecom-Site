@@ -4,23 +4,26 @@ import { submitCustomEnquiry, type CustomEnquiryState } from "@lib/data/custom-e
 import ErrorMessage from "@modules/checkout/components/error-message"
 import { SubmitButton } from "@modules/checkout/components/submit-button"
 import Input from "@modules/common/components/input"
-import { Label } from "@modules/common/components/ui"
 import { useActionState } from "react"
 
 const initialState: CustomEnquiryState = { status: "idle" }
 
-export default function CustomOrderForm() {
+export default function CustomOrderForm({
+  initialMessage,
+}: {
+  initialMessage?: string
+}) {
   const [state, formAction] = useActionState(submitCustomEnquiry, initialState)
 
   if (state.status === "success") {
     return (
       <div
-        className="border border-ui-border-base rounded-rounded p-6 bg-ui-bg-subtle"
+        className="bg-surface p-8"
         data-testid="custom-order-success"
         role="status"
       >
-        <p className="text-base-semi mb-2">Thank you, we have your request.</p>
-        <p className="text-base-regular text-ui-fg-subtle">
+        <p className="mb-2 font-display text-[28px] leading-tight">Thank you, we have your request.</p>
+        <p className="text-muted">
           We have emailed you a confirmation and will reply by email as soon as we can.
         </p>
       </div>
@@ -28,7 +31,7 @@ export default function CustomOrderForm() {
   }
 
   return (
-    <form action={formAction} className="flex flex-col gap-y-4 max-w-xl" data-testid="custom-order-form">
+    <form action={formAction} className="flex max-w-xl flex-col gap-y-6" data-testid="custom-order-form">
       <Input label="Name" name="name" autoComplete="name" required maxLength={100} data-testid="custom-order-name" />
       <Input
         label="Email"
@@ -40,10 +43,13 @@ export default function CustomOrderForm() {
         data-testid="custom-order-email"
       />
       <Input label="Phone (optional)" name="phone" type="tel" autoComplete="tel" maxLength={30} data-testid="custom-order-phone" />
-      <div className="flex flex-col w-full">
-        <Label htmlFor="custom-order-message" className="mb-2 txt-compact-medium-plus">
-          What do you have in mind?
-        </Label>
+      <div className="flex w-full flex-col gap-y-1.5">
+        <label
+          htmlFor="custom-order-message"
+          className="text-[12px] font-medium uppercase leading-4 tracking-[0.12em] text-muted"
+        >
+          What do you have in mind? *
+        </label>
         <textarea
           id="custom-order-message"
           name="message"
@@ -51,7 +57,8 @@ export default function CustomOrderForm() {
           minLength={10}
           maxLength={2000}
           rows={6}
-          className="w-full rounded-rounded border border-ui-border-base bg-ui-bg-field p-3 text-base-regular"
+          defaultValue={initialMessage}
+          className="field"
           data-testid="custom-order-message"
         />
       </div>
@@ -62,7 +69,7 @@ export default function CustomOrderForm() {
         <input id="custom-order-website" name="website" type="text" tabIndex={-1} autoComplete="off" defaultValue="" />
       </div>
       <ErrorMessage error={state.status === "error" ? state.message : null} data-testid="custom-order-error" />
-      <SubmitButton className="w-full sm:w-auto" data-testid="custom-order-submit">
+      <SubmitButton className="w-full sm:w-auto sm:self-start" data-testid="custom-order-submit">
         Send request
       </SubmitButton>
     </form>

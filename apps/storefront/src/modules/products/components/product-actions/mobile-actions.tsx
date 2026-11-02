@@ -3,8 +3,7 @@ import { Button, clx } from "@modules/common/components/ui"
 import React, { Fragment, useMemo } from "react"
 
 import useToggleState from "@lib/hooks/use-toggle-state"
-import ChevronDown from "@modules/common/icons/chevron-down"
-import X from "@modules/common/icons/x"
+import { CloseIcon } from "@modules/layout/components/icons"
 
 import { getProductPrice } from "@lib/util/get-product-price"
 import OptionSelect from "./option-select"
@@ -23,6 +22,7 @@ type MobileActionsProps = {
   optionsDisabled: boolean
 }
 
+/** Sticky bar under 1024px, shown once the main Add to bag button scrolls away. */
 const MobileActions: React.FC<MobileActionsProps> = ({
   product,
   variant,
@@ -36,18 +36,10 @@ const MobileActions: React.FC<MobileActionsProps> = ({
 }) => {
   const { state, open, close } = useToggleState()
 
-  const price = getProductPrice({
-    product: product,
-    variantId: variant?.id,
-  })
-
+  const price = getProductPrice({ product, variantId: variant?.id })
   const selectedPrice = useMemo(() => {
-    if (!price) {
-      return null
-    }
-    const { variantPrice, cheapestPrice } = price
-
-    return variantPrice || cheapestPrice || null
+    if (!price) return null
+    return price.variantPrice || price.cheapestPrice || null
   }, [price])
 
   const isSimple = isSimpleProduct(product)
@@ -55,86 +47,75 @@ const MobileActions: React.FC<MobileActionsProps> = ({
   return (
     <>
       <div
-        className={clx("lg:hidden inset-x-0 bottom-0 fixed z-50", {
+        className={clx("fixed inset-x-0 bottom-0 z-50 small:hidden", {
           "pointer-events-none": !show,
         })}
       >
         <Transition
           as={Fragment}
           show={show}
-          enter="ease-in-out duration-300"
-          enterFrom="opacity-0"
-          enterTo="opacity-100"
-          leave="ease-in duration-300"
-          leaveFrom="opacity-100"
-          leaveTo="opacity-0"
+          enter="ease-out duration-300"
+          enterFrom="opacity-0 translate-y-full"
+          enterTo="opacity-100 translate-y-0"
+          leave="ease-in duration-200"
+          leaveFrom="opacity-100 translate-y-0"
+          leaveTo="opacity-0 translate-y-full"
         >
           <div
-            className="bg-white flex flex-col gap-y-3 justify-center items-center text-large-regular p-4 h-full w-full border-t border-gray-200"
+            className="flex flex-col gap-y-3 border-t border-hairline bg-white px-4 pb-4 pt-3"
             data-testid="mobile-actions"
           >
-            <div className="flex items-center gap-x-2">
-              <span data-testid="mobile-title">{product.title}</span>
-              <span>—</span>
-              {selectedPrice ? (
-                <div className="flex items-end gap-x-2 text-ui-fg-base">
-                  {selectedPrice.price_type === "sale" && (
-                    <p>
-                      <span className="line-through text-small-regular">
-                        {selectedPrice.original_price}
-                      </span>
-                    </p>
-                  )}
-                  <span
-                    className={clx({
-                      "text-ui-fg-interactive":
-                        selectedPrice.price_type === "sale",
-                    })}
-                  >
-                    {selectedPrice.calculated_price}
-                  </span>
-                </div>
-              ) : (
-                <div></div>
+            <div className="flex items-baseline justify-between gap-x-3 text-[14px]">
+              <span className="truncate font-normal" data-testid="mobile-title">
+                {product.title}
+              </span>
+              {selectedPrice && (
+                <span className="shrink-0 font-light">
+                  {selectedPrice.calculated_price}
+                </span>
               )}
             </div>
-            <div className={clx("grid grid-cols-2 w-full gap-x-4", {
-              "!grid-cols-1": isSimple
-            })}>
-              {!isSimple && <Button
-                type="button"
-                onClick={open}
-                variant="secondary"
-                className="w-full"
-                data-testid="mobile-actions-button"
-              >
-                <div className="flex items-center justify-between w-full">
-                  <span>
+            <div
+              className={clx("grid grid-cols-2 gap-x-3", {
+                "!grid-cols-1": isSimple,
+              })}
+            >
+              {!isSimple && (
+                <Button
+                  type="button"
+                  onClick={open}
+                  variant="secondary"
+                  size="large"
+                  className="w-full !px-3"
+                  data-testid="mobile-actions-button"
+                >
+                  <span className="truncate">
                     {variant
-                      ? Object.values(options).join(" / ")
-                      : "Select Options"}
+                      ? Object.values(options).join(" / ")
+                      : "Select options"}
                   </span>
-                  <ChevronDown />
-                </div>
-              </Button>}
+                </Button>
+              )}
               <Button
                 type="button"
                 onClick={handleAddToCart}
                 disabled={!inStock || !variant}
-                className="w-full"
+                size="large"
+                className="w-full !px-3"
                 isLoading={isAdding}
                 data-testid="mobile-cart-button"
               >
                 {!variant
-                  ? "Select variant"
+                  ? "Select options"
                   : !inStock
                   ? "Out of stock"
-                  : "Add to cart"}
+                  : "Add to bag"}
               </Button>
             </div>
           </div>
         </Transition>
       </div>
+
       <Transition appear show={state} as={Fragment}>
         <Dialog as="div" className="relative z-[75]" onClose={close}>
           <Transition.Child
@@ -146,58 +127,51 @@ const MobileActions: React.FC<MobileActionsProps> = ({
             leaveFrom="opacity-100"
             leaveTo="opacity-0"
           >
-            <div className="fixed inset-0 bg-gray-700 bg-opacity-75 backdrop-blur-sm" />
+            <div className="fixed inset-0 bg-black/40" aria-hidden />
           </Transition.Child>
 
-          <div className="fixed bottom-0 inset-x-0">
-            <div className="flex min-h-full h-full items-center justify-center text-center">
-              <Transition.Child
-                as={Fragment}
-                enter="ease-out duration-300"
-                enterFrom="opacity-0"
-                enterTo="opacity-100"
-                leave="ease-in duration-200"
-                leaveFrom="opacity-100"
-                leaveTo="opacity-0"
-              >
-                <Dialog.Panel
-                  className="w-full h-full transform overflow-hidden text-left flex flex-col gap-y-3"
-                  data-testid="mobile-actions-modal"
+          <Transition.Child
+            as={Fragment}
+            enter="transform transition ease-out duration-300"
+            enterFrom="translate-y-full"
+            enterTo="translate-y-0"
+            leave="transform transition ease-in duration-200"
+            leaveFrom="translate-y-0"
+            leaveTo="translate-y-full"
+          >
+            <Dialog.Panel
+              className="fixed inset-x-0 bottom-0 max-h-[85vh] overflow-y-auto bg-white"
+              data-testid="mobile-actions-modal"
+            >
+              <div className="flex h-14 items-center justify-between border-b border-hairline pl-6 pr-3">
+                <Dialog.Title className="label">Select options</Dialog.Title>
+                <button
+                  onClick={close}
+                  className="flex h-11 w-11 items-center justify-center"
+                  data-testid="close-modal-button"
+                  aria-label="Close"
                 >
-                  <div className="w-full flex justify-end pr-6">
-                    <button
-                      onClick={close}
-                      className="bg-white w-12 h-12 rounded-full text-ui-fg-base flex justify-center items-center"
-                      data-testid="close-modal-button"
-                      aria-label="Close"
-                    >
-                      <X />
-                    </button>
-                  </div>
-                  <div className="bg-white px-6 py-12">
-                    {(product.variants?.length ?? 0) > 1 && (
-                      <div className="flex flex-col gap-y-6">
-                        {(product.options || []).map((option) => {
-                          return (
-                            <div key={option.id}>
-                              <OptionSelect
-                                option={option}
-                                current={options[option.id]}
-                                updateOption={updateOptions}
-                                title={option.title ?? ""}
-                                name={`mobile-options[${option.id}]`}
-                                disabled={optionsDisabled}
-                              />
-                            </div>
-                          )
-                        })}
-                      </div>
-                    )}
-                  </div>
-                </Dialog.Panel>
-              </Transition.Child>
-            </div>
-          </div>
+                  <CloseIcon size={22} />
+                </button>
+              </div>
+              <div className="flex flex-col gap-y-6 px-6 py-8">
+                {(product.options || []).map((option) => (
+                  <OptionSelect
+                    key={option.id}
+                    option={option}
+                    current={options[option.id]}
+                    updateOption={updateOptions}
+                    title={option.title ?? ""}
+                    name={`mobile-options[${option.id}]`}
+                    disabled={optionsDisabled}
+                  />
+                ))}
+                <Button type="button" size="large" onClick={close}>
+                  Done
+                </Button>
+              </div>
+            </Dialog.Panel>
+          </Transition.Child>
         </Dialog>
       </Transition>
     </>

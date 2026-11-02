@@ -1,6 +1,5 @@
 import { notFound } from "next/navigation"
 
-import InteractiveLink from "@modules/common/components/interactive-link"
 import CategoryListing from "@modules/categories/components/category-listing"
 import { listCategoryFilterAttributes } from "@lib/data/filter-attributes"
 import { getRegion } from "@lib/data/regions"
@@ -34,52 +33,61 @@ export default async function CategoryTemplate({
 
   getParents(category)
 
+  const crumbs = [...parents].reverse()
+
   return (
-    <div
-      className="flex flex-col small:flex-row small:items-start py-6 content-container"
-      data-testid="category-container"
-    >
-      <div className="w-full">
-        <div className="flex flex-row mb-8 text-2xl-semi gap-4">
-          {parents &&
-            parents.map((parent) => (
-              <span key={parent.id} className="text-ui-fg-subtle">
-                <LocalizedClientLink
-                  className="mr-4 hover:text-black"
-                  href={`/categories/${parent.handle}`}
-                  data-testid="sort-by-link"
-                >
-                  {parent.name}
-                </LocalizedClientLink>
-                /
-              </span>
-            ))}
-          <h1 data-testid="category-page-title">{category.name}</h1>
-        </div>
+    <div className="content-container py-10 small:py-14" data-testid="category-container">
+      <header className="mb-8 small:mb-10">
+        <nav
+          aria-label="Breadcrumb"
+          className="label mb-4 flex flex-wrap items-center gap-x-2 text-muted"
+        >
+          <LocalizedClientLink href="/store" className="transition-colors hover:text-ink">
+            Shop
+          </LocalizedClientLink>
+          {crumbs.map((parent) => (
+            <span key={parent.id} className="flex items-center gap-x-2">
+              <span aria-hidden>/</span>
+              <LocalizedClientLink
+                href={`/categories/${parent.handle}`}
+                className="transition-colors hover:text-ink"
+                data-testid="sort-by-link"
+              >
+                {parent.name}
+              </LocalizedClientLink>
+            </span>
+          ))}
+        </nav>
+        <h1
+          className="font-display text-[38px] font-normal leading-[1.1] small:text-[52px]"
+          data-testid="category-page-title"
+        >
+          {category.name}
+        </h1>
         {category.description && (
-          <div className="mb-8 text-base-regular">
-            <p>{category.description}</p>
-          </div>
+          <p className="mt-3 max-w-xl text-muted">{category.description}</p>
         )}
-        {category.category_children && (
-          <div className="mb-8 text-base-large">
-            <ul className="grid grid-cols-1 gap-2">
-              {category.category_children?.map((c) => (
-                <li key={c.id}>
-                  <InteractiveLink href={`/categories/${c.handle}`}>
-                    {c.name}
-                  </InteractiveLink>
-                </li>
-              ))}
-            </ul>
-          </div>
+        {!!category.category_children?.length && (
+          <ul className="mt-6 flex flex-wrap gap-x-6 gap-y-2" data-testid="subcategory-links">
+            {category.category_children.map((c) => (
+              <li key={c.id}>
+                <LocalizedClientLink
+                  href={`/categories/${c.handle}`}
+                  className="label text-ink link-fade"
+                >
+                  {c.name}
+                </LocalizedClientLink>
+              </li>
+            ))}
+          </ul>
         )}
-        <CategoryListing
-          categoryId={category.id}
-          currencyCode={region.currency_code}
-          attributes={attributes}
-        />
-      </div>
+      </header>
+
+      <CategoryListing
+        categoryId={category.id}
+        currencyCode={region.currency_code}
+        attributes={attributes}
+      />
     </div>
   )
 }

@@ -30,7 +30,7 @@ const AccountNav = ({
         {route !== `/${countryCode}/account` ? (
           <LocalizedClientLink
             href="/account"
-            className="flex items-center gap-x-2 text-small-regular py-2"
+            className="flex items-center gap-x-2 py-2 text-[14px]"
             data-testid="account-main-link"
           >
             <>
@@ -40,15 +40,15 @@ const AccountNav = ({
           </LocalizedClientLink>
         ) : (
           <>
-            <div className="text-xl-semi mb-4 px-8">
+            <div className="mb-4 font-display text-[30px] leading-tight">
               Hello {customer?.first_name}
             </div>
-            <div className="text-base-regular">
-              <ul>
+            <div className="text-[15px]">
+              <ul className="border-t border-hairline">
                 <li>
                   <LocalizedClientLink
                     href="/account/profile"
-                    className="flex items-center justify-between py-4 border-b border-gray-200 px-8"
+                    className="flex items-center justify-between py-4 border-b border-hairline"
                     data-testid="profile-link"
                   >
                     <>
@@ -63,7 +63,7 @@ const AccountNav = ({
                 <li>
                   <LocalizedClientLink
                     href="/account/addresses"
-                    className="flex items-center justify-between py-4 border-b border-gray-200 px-8"
+                    className="flex items-center justify-between py-4 border-b border-hairline"
                     data-testid="addresses-link"
                   >
                     <>
@@ -78,7 +78,7 @@ const AccountNav = ({
                 <li>
                   <LocalizedClientLink
                     href="/account/orders"
-                    className="flex items-center justify-between py-4 border-b border-gray-200 px-8"
+                    className="flex items-center justify-between py-4 border-b border-hairline"
                     data-testid="orders-link"
                   >
                     <div className="flex items-center gap-x-2">
@@ -91,7 +91,7 @@ const AccountNav = ({
                 <li>
                   <button
                     type="button"
-                    className="flex items-center justify-between py-4 border-b border-gray-200 px-8 w-full"
+                    className="flex items-center justify-between py-4 border-b border-hairline w-full"
                     onClick={handleLogout}
                     data-testid="logout-button"
                   >
@@ -109,11 +109,11 @@ const AccountNav = ({
       </div>
       <div className="hidden small:block" data-testid="account-nav">
         <div>
-          <div className="pb-4">
-            <h3 className="text-base-semi">Account</h3>
+          <div className="pb-5">
+            <h3 className="label">Account</h3>
           </div>
-          <div className="text-base-regular">
-            <ul className="flex mb-0 justify-start items-start flex-col gap-y-4">
+          <div className="text-[15px]">
+            <ul className="mb-0 flex flex-col items-start justify-start gap-y-3">
               <li>
                 <AccountNavLink
                   href="/account"
@@ -150,7 +150,7 @@ const AccountNav = ({
                   Orders
                 </AccountNavLink>
               </li>
-              <li className="text-grey-700">
+              <li className="text-muted hover:text-ink">
                 <button
                   type="button"
                   onClick={handleLogout}
@@ -186,8 +186,8 @@ const AccountNavLink = ({
   return (
     <LocalizedClientLink
       href={href}
-      className={clx("text-ui-fg-subtle hover:text-ui-fg-base", {
-        "text-ui-fg-base font-semibold": active,
+      className={clx("font-light text-muted transition-colors hover:text-ink", {
+        "!font-normal text-ink": active,
       })}
       data-testid={dataTestId}
     >

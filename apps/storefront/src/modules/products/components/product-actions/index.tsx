@@ -6,7 +6,6 @@ import { notifyCartUpdated } from "@lib/util/cart-events"
 import { isVariantInStock } from "@lib/util/inventory"
 import { HttpTypes } from "@medusajs/types"
 import { Button } from "@modules/common/components/ui"
-import Divider from "@modules/common/components/divider"
 import OptionSelect from "@modules/products/components/product-actions/option-select"
 import { isEqual } from "lodash"
 import { useParams, usePathname } from "next/navigation"
@@ -142,7 +141,7 @@ export default function ProductActions({
           method="post"
           action={`/${countryCode}/cart/add`}
           onSubmit={handleSubmit}
-          className="flex flex-col gap-y-2"
+          className="flex flex-col gap-y-6"
           {...{
             toolname: "add_to_cart",
             tooldescription:
@@ -156,60 +155,58 @@ export default function ProductActions({
             value={isValidVariant ? selectedVariant?.id ?? "" : ""}
           />
           <input type="hidden" name="quantity" value="1" />
-          <div>
-            {(product.variants?.length ?? 0) > 1 && (
-              <div className="flex flex-col gap-y-4">
-                {(product.options || []).map((option) => {
-                  return (
-                    <div key={option.id}>
-                      <OptionSelect
-                        option={option}
-                        current={options[option.id]}
-                        updateOption={setOptionValue}
-                        title={option.title ?? ""}
-                        name={`options[${option.id}]`}
-                        data-testid="product-options"
-                        disabled={!!disabled || isAdding}
-                      />
-                    </div>
-                  )
-                })}
-                <Divider />
-              </div>
-            )}
-          </div>
 
           <ProductPrice product={product} variant={selectedVariant} />
 
-          {selectedVariant && isValidVariant && (
-            <p
-              className="text-small-regular text-ui-fg-subtle"
-              data-testid="product-availability"
-            >
-              {inStock ? "In stock" : "Out of stock"}
-            </p>
+          {(product.variants?.length ?? 0) > 1 && (
+            <div className="flex flex-col gap-y-6">
+              {(product.options || []).map((option) => (
+                <div key={option.id}>
+                  <OptionSelect
+                    option={option}
+                    current={options[option.id]}
+                    updateOption={setOptionValue}
+                    title={option.title ?? ""}
+                    name={`options[${option.id}]`}
+                    data-testid="product-options"
+                    disabled={!!disabled || isAdding}
+                  />
+                </div>
+              ))}
+            </div>
           )}
 
-          <Button
-            type="submit"
-            disabled={
-              !inStock ||
-              !selectedVariant ||
-              !!disabled ||
-              isAdding ||
-              !isValidVariant
-            }
-            variant="primary"
-            className="w-full h-10"
-            isLoading={isAdding}
-            data-testid="add-product-button"
-          >
-            {!selectedVariant
-              ? "Select variant"
-              : !inStock || !isValidVariant
-              ? "Out of stock"
-              : "Add to cart"}
-          </Button>
+          <div className="flex flex-col gap-y-3">
+            <Button
+              type="submit"
+              disabled={
+                !inStock ||
+                !selectedVariant ||
+                !!disabled ||
+                isAdding ||
+                !isValidVariant
+              }
+              variant="primary"
+              size="large"
+              className="w-full"
+              isLoading={isAdding}
+              data-testid="add-product-button"
+            >
+              {!selectedVariant
+                ? "Select options"
+                : !inStock || !isValidVariant
+                ? "Out of stock"
+                : "Add to bag"}
+            </Button>
+            {selectedVariant && isValidVariant && (
+              <p
+                className="text-[13px] font-light text-muted"
+                data-testid="product-availability"
+              >
+                {inStock ? "In stock" : "Out of stock"}
+              </p>
+            )}
+          </div>
         </form>
         <MobileActions
           product={product}

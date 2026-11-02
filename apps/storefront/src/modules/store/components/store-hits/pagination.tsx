@@ -5,50 +5,62 @@ import { usePagination } from "react-instantsearch"
 import { clx } from "@modules/common/components/ui"
 
 const SearchPagination = () => {
-  const { pages, currentRefinement, nbPages, refine } = usePagination({
-    padding: 2,
-  })
+  const { pages, currentRefinement, nbPages, refine, isFirstPage, isLastPage } =
+    usePagination({ padding: 1 })
 
   if (nbPages <= 1) {
     return null
   }
 
-  const renderPage = (page: number) => (
-    <button
-      key={page}
-      className={clx("txt-xlarge-plus text-ui-fg-muted", {
-        "text-ui-fg-base hover:text-ui-fg-subtle": page === currentRefinement,
-      })}
-      disabled={page === currentRefinement}
-      onClick={() => refine(page)}
-    >
-      {page + 1}
-    </button>
-  )
+  const go = (page: number) => {
+    refine(page)
+    window.scrollTo({ top: 0, behavior: "smooth" })
+  }
 
-  const renderEllipsis = (key: string) => (
-    <span
-      key={key}
-      className="txt-xlarge-plus text-ui-fg-muted items-center cursor-default"
-    >
-      ...
-    </span>
-  )
-
-  const lastPage = nbPages - 1
+  const arrow = "h-10 px-3 text-[12px] font-medium uppercase tracking-label transition-colors hover:text-ink disabled:cursor-default disabled:text-muted/40 disabled:hover:text-muted/40"
 
   return (
-    <div className="flex justify-center w-full mt-12">
-      <div className="flex gap-3 items-end" data-testid="product-pagination">
-        {!pages.includes(0) && renderPage(0)}
-        {!pages.includes(0) && !pages.includes(1) && renderEllipsis("start")}
-        {pages.map(renderPage)}
-        {!pages.includes(lastPage) &&
-          !pages.includes(lastPage - 1) &&
-          renderEllipsis("end")}
-        {!pages.includes(lastPage) && renderPage(lastPage)}
+    <nav
+      aria-label="Pagination"
+      className="mt-14 flex justify-center"
+      data-testid="product-pagination"
+    >
+      <div className="flex items-center gap-x-1 text-[14px]">
+        <button
+          type="button"
+          className={clx(arrow, "text-ink")}
+          disabled={isFirstPage}
+          onClick={() => go(currentRefinement - 1)}
+        >
+          Prev
+        </button>
+        {pages.map((page) => (
+          <button
+            key={page}
+            type="button"
+            aria-current={page === currentRefinement ? "page" : undefined}
+            disabled={page === currentRefinement}
+            onClick={() => go(page)}
+            className={clx(
+              "h-10 min-w-10 px-2 transition-colors",
+              page === currentRefinement
+                ? "border-b border-ink text-ink"
+                : "text-muted hover:text-ink"
+            )}
+          >
+            {page + 1}
+          </button>
+        ))}
+        <button
+          type="button"
+          className={clx(arrow, "text-ink")}
+          disabled={isLastPage}
+          onClick={() => go(currentRefinement + 1)}
+        >
+          Next
+        </button>
       </div>
-    </div>
+    </nav>
   )
 }
 

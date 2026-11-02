@@ -33,9 +33,9 @@ const PaymentContainer: React.FC<PaymentContainerProps> = ({
       value={paymentProviderId}
       disabled={disabled}
       className={clx(
-        "flex flex-col gap-y-2 text-small-regular cursor-pointer py-4 border rounded-rounded px-8 mb-2 hover:shadow-borders-interactive-with-active",
+        "mb-3 flex flex-col gap-y-2 cursor-pointer border border-hairline px-5 py-4 text-[14px] transition-colors hover:border-ink small:px-6",
         {
-          "border-ui-border-interactive":
+          "!border-ink bg-surface":
             selectedPaymentOptionId === paymentProviderId,
         }
       )}
@@ -43,14 +43,14 @@ const PaymentContainer: React.FC<PaymentContainerProps> = ({
       <div className="flex items-center justify-between ">
         <div className="flex items-center gap-x-4">
           <Radio checked={selectedPaymentOptionId === paymentProviderId} />
-          <Text className="text-base-regular">
+          <Text className="text-[15px]">
             {paymentInfo?.title || paymentProviderId}
           </Text>
           {isManual(paymentProviderId) && isDevelopment && (
             <PaymentTest className="hidden small:block" />
           )}
         </div>
-        <span className="justify-self-end text-ui-fg-base">
+        <span className="justify-self-end text-ink">
           {paymentInfo?.icon}
         </span>
       </div>
@@ -85,7 +85,7 @@ export const StripePaymentContainer = ({
       {selectedPaymentOptionId === paymentProviderId &&
         (stripeReady ? (
           <div className="my-4 transition-all duration-150 ease-in-out">
-            <Text className="txt-medium-plus text-ui-fg-base mb-1">
+            <Text className="text-[14px] font-medium text-ink mb-1">
               Enter your payment details:
             </Text>
             <PaymentElement

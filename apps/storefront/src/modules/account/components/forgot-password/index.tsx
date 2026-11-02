@@ -18,7 +18,7 @@ const ForgotPassword = () => {
       <h1 className="text-large-semi uppercase mb-6">Reset your password</h1>
       {state?.state === "sent" ? (
         <p
-          className="text-center text-base-regular text-ui-fg-base mb-8"
+          className="text-center text-base-regular text-ink mb-8"
           data-testid="forgot-password-sent"
         >
           If an account exists for that email address, we have sent a link to
@@ -26,7 +26,7 @@ const ForgotPassword = () => {
         </p>
       ) : (
         <>
-          <p className="text-center text-base-regular text-ui-fg-base mb-8">
+          <p className="text-center text-base-regular text-ink mb-8">
             Enter your email address and we will send you a link to choose a
             new password.
           </p>
