@@ -1,0 +1,27 @@
+# Local database and Redis for development. Used by `pnpm setup:local`.
+# Ports 5433 / 6380 so they don't clash with a Postgres or Redis you may
+# already run (for example the teacher-store project on 5432 / 6379).
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: medusa
+      POSTGRES_PASSWORD: medusa
+      POSTGRES_DB: jewellery
+    ports: ["5433:5432"]
+    volumes: [pgdata:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U medusa -d jewellery"]
+      interval: 3s
+      retries: 20
+  redis:
+    image: redis:7
+    ports: ["6380:6379"]
+    volumes: [redisdata:/data]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 3s
+      retries: 20
+volumes:
+  pgdata: {}
+  redisdata: {}

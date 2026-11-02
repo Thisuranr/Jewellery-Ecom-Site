@@ -1,3 +1,32 @@
+# Jewellery Store (Australia)
+
+Medusa v2 backend + Next.js storefront for an Australian jewellery shop (AUD, prices include GST, Stripe). Built on the Medusa DTC starter; project notes are in `CLAUDE.md` and `docs/research/`.
+
+## Run it on your computer
+
+You need [Node.js 22](https://nodejs.org), [pnpm](https://pnpm.io/installation) (`npm install -g pnpm`) and [Docker Desktop](https://www.docker.com/products/docker-desktop) (running).
+
+```bash
+git clone https://github.com/Thisuranr/Jewellery-Ecom-Site.git
+cd Jewellery-Ecom-Site
+git checkout claude/blissful-carson-tzzli7
+pnpm setup:local
+pnpm dev
+```
+
+`pnpm setup:local` is a one-time step (safe to repeat): it starts Postgres and Redis in Docker, writes the settings files, creates the database with the jewellery categories, fields and three sample products, and creates an admin login.
+
+- Shop: http://localhost:8000
+- Admin: http://localhost:9000/app (email `admin@example.com`, password `jewellery-admin`)
+
+Emails (orders, custom-order requests, password resets) are printed in the `pnpm dev` terminal instead of being sent. Checkout needs the client's Stripe test keys in `apps/backend/.env` (`STRIPE_API_KEY`, `STRIPE_WEBHOOK_SECRET`) and `apps/storefront/.env.local` (`NEXT_PUBLIC_STRIPE_KEY`).
+
+Already running Postgres and Redis yourself? Use `DATABASE_URL=... REDIS_URL=... pnpm setup:local --no-docker`.
+
+---
+
+## About the starter
+
 <p align="center">
   <a href="https://www.medusajs.com">
   <picture>

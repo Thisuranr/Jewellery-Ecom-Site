@@ -6,6 +6,7 @@
     "node": ">=22.23.4"
   },
   "scripts": {
+    "setup:local": "node scripts/local-setup.mjs",
     "dev": "pnpm -r dev",
     "build": "pnpm -r build",
     "start": "turbo start",
