@@ -63,7 +63,16 @@ module.exports = defineConfig({
   admin: {
     backendUrl: process.env.MEDUSA_BACKEND_URL || "/",
   },
+  // Medusa's translation module backs the attribute labels (English only
+  // for now, but adding a language later needs no data model change).
+  featureFlags: {
+    translation: true,
+  },
   modules: [
+    { resolve: "@medusajs/medusa/translation" },
+    // Jewellery attributes (material type, purity, colour...). See
+    // src/modules/attributes.
+    { resolve: "./src/modules/attributes" },
     // Stripe is the only payment method (provider id pp_stripe_stripe).
     // Payment methods shown at checkout (cards, Apple/Google Pay, Afterpay,
     // Zip) are switched on in the Stripe dashboard, not here, because
