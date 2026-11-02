@@ -7,7 +7,7 @@ import { QueryContext, search } from "@medusajs/framework/utils";
  * change: the module reindexes on the next boot. Keep in sync with the
  * storefront's `SEARCH_PRICE_CURRENCIES`.
  */
-export const PRICE_CURRENCIES = ["aud", "eur", "usd"] as const;
+export const PRICE_CURRENCIES = ["aud"] as const;
 
 export type PriceCurrency = (typeof PRICE_CURRENCIES)[number];
 
@@ -19,11 +19,53 @@ const PRICE_GRAPH_FIELDS = [
   "variants.calculated_price.original_amount",
 ];
 
-const pricingContext = (currency: PriceCurrency) => ({
+// Prices are read the way the product page and cart read them: with the
+// Australia region in the context, so region-only prices are included.
+const pricingContext = (currency: PriceCurrency, regionId?: string) => ({
   variants: {
-    calculated_price: QueryContext({ currency_code: currency }),
+    calculated_price: QueryContext(
+      regionId
+        ? { currency_code: currency, region_id: regionId }
+        : { currency_code: currency },
+    ),
   },
 });
+
+let australiaRegionId: Promise<string | undefined> | undefined;
+
+/** Test hook: forget the cached region. */
+export function resetRegionCache() {
+  australiaRegionId = undefined;
+}
+
+/**
+ * The id of the Australia region (the AUD region that serves "au"), looked up
+ * once and cached. Falls back to undefined (currency-only pricing) when there
+ * is none yet; a failed lookup is not cached.
+ */
+export function getAustraliaRegionId(
+  container: SearchTypes.SearchIngestionContext["container"],
+): Promise<string | undefined> {
+  if (!australiaRegionId) {
+    australiaRegionId = (async () => {
+      const { data } = await container.query.graph({
+        entity: "region",
+        fields: ["id", "currency_code", "countries.iso_2"],
+      });
+      const regions = data as Array<{
+        id: string;
+        currency_code?: string;
+        countries?: Array<{ iso_2?: string }> | null;
+      }>;
+      return regions.find((r) => r.countries?.some((c) => c.iso_2 === "au"))
+        ?.id;
+    })().catch((error) => {
+      australiaRegionId = undefined;
+      throw error;
+    });
+  }
+  return australiaRegionId;
+}
 
 type PricedVariant = {
   calculated_price?: {
@@ -155,13 +197,15 @@ export async function loadPricing(
     return pricing;
   }
 
+  const regionId = await getAustraliaRegionId(container);
+
   await Promise.all(
     PRICE_CURRENCIES.map(async (currency) => {
       const { data } = await container.query.graph({
         entity: "product",
         fields: PRICE_GRAPH_FIELDS,
         filters: { id: ids },
-        context: pricingContext(currency),
+        context: pricingContext(currency, regionId),
       });
 
       for (const product of data) {

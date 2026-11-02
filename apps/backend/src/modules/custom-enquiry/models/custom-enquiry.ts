@@ -9,11 +9,13 @@ const CustomEnquiry = model
     id: model.id({ prefix: "enq" }).primaryKey(),
     name: model.text(),
     email: model.text(),
+    /** The inbox key used for throttling (lower case, +tag and Gmail dots removed). */
+    email_normalized: model.text().default(""),
     phone: model.text().nullable(),
     message: model.text(),
     budget: model.text().nullable(),
     status: model.enum([...ENQUIRY_STATUSES]).default("new"),
   })
-  .indexes([{ on: ["email", "created_at"] }])
+  .indexes([{ on: ["email", "created_at"] }, { on: ["email_normalized", "created_at"] }])
 
 export default CustomEnquiry

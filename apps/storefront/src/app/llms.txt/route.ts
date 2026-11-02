@@ -58,10 +58,14 @@ ${links.join("\n")}
 
 ## For agents
 - [Sitemap](${origin}/sitemap.xml)
-- [UCP profile](${origin}/.well-known/ucp)
+${
+  process.env.UCP_ENABLED === "true"
+    ? `- [UCP profile](${origin}/.well-known/ucp)
 - UCP MCP endpoint: ${origin}${UCP_MCP_PATH}
 - UCP REST endpoint: ${origin}${UCP_REST_BASE_PATH}
 `
+    : ""
+}`
 
   return new Response(body, {
     headers: {

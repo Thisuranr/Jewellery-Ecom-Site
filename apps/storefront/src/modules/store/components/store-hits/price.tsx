@@ -4,7 +4,7 @@ import { indexedCurrency, priceAttribute } from "@lib/search-client"
 import { convertToLocale } from "@lib/util/money"
 import { Text, clx } from "@modules/common/components/ui"
 
-/** The per-currency price fields a hit may carry, e.g. `min_price_eur`. */
+/** The per-currency price fields a hit may carry, e.g. `min_price_aud`. */
 export type HitPricing = Record<string, unknown>
 
 type HitPriceProps = {

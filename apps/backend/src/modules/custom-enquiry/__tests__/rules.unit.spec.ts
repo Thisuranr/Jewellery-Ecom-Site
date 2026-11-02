@@ -2,13 +2,16 @@ import { customOrderEmail } from "../../../lib/custom-order-email"
 import {
   AdminListEnquiriesSchema,
   AdminUpdateEnquirySchema,
+  hourlyCap,
   isHoneypotTripped,
+  isOverCap,
   isThrottled,
   MAX_ENQUIRIES_PER_EMAIL,
   StoreCreateEnquirySchema,
   THROTTLE_WINDOW_MS,
   throttleWindowStart,
 } from "../lib/rules"
+import { normalizeEmail } from "../lib/normalize-email"
 
 const valid = { name: "Sam", email: "sam@example.com", message: "I would like a custom ring." }
 
@@ -112,5 +115,49 @@ describe("customOrderEmail", () => {
     expect(customOrderEmail({})).toBe("orders@example.com")
     expect(customOrderEmail({ CUSTOM_ORDER_EMAIL: " " })).toBe("orders@example.com")
     expect(customOrderEmail({ CUSTOM_ORDER_EMAIL: "shop@real.com.au" })).toBe("shop@real.com.au")
+  })
+})
+
+describe("control characters", () => {
+  it.each([
+    ["name", { name: "Sam\u0000" }],
+    ["message", { message: "a long message\u0000here" }],
+    ["phone", { phone: "04\u000100" }],
+    ["budget", { budget: "A$5\u007f" }],
+    ["email", { email: "a\u0000@example.com" }],
+  ])("rejects a control character in %s", (_f, patch) => {
+    expect(StoreCreateEnquirySchema.safeParse({ ...valid, ...patch }).success).toBe(false)
+  })
+
+  it("keeps line breaks and tabs in the message", () => {
+    const r = StoreCreateEnquirySchema.parse({ ...valid, message: "line one\r\nline\ttwo" })
+    expect(r.message).toBe("line one\r\nline\ttwo")
+  })
+})
+
+describe("normalizeEmail", () => {
+  it.each([
+    ["  Sam@Example.COM ", "sam@example.com"],
+    ["sam+a@example.com", "sam@example.com"],
+    ["sam+b+c@example.com", "sam@example.com"],
+    ["s.am@example.com", "s.am@example.com"],
+    ["s.a.m+x@gmail.com", "sam@gmail.com"],
+    ["Sa.M@googlemail.com", "sam@gmail.com"],
+  ])("%s -> %s", (input, out) => {
+    expect(normalizeEmail(input)).toBe(out)
+  })
+})
+
+describe("hourly cap", () => {
+  it("defaults to 30 and reads a positive whole number from the env", () => {
+    expect(hourlyCap(undefined)).toBe(30)
+    expect(hourlyCap("5")).toBe(5)
+    expect(hourlyCap("0")).toBe(30)
+    expect(hourlyCap("abc")).toBe(30)
+    expect(hourlyCap("")).toBe(30)
+  })
+  it("refuses at the cap", () => {
+    expect(isOverCap(29, 30)).toBe(false)
+    expect(isOverCap(30, 30)).toBe(true)
   })
 })

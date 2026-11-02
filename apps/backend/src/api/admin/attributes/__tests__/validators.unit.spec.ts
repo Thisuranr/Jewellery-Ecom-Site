@@ -115,3 +115,38 @@ describe("English only", () => {
     ).toBe(false)
   })
 })
+
+describe("control characters (NUL makes Postgres fail with a 500)", () => {
+  const nul = "bad\u0000value"
+  it("rejects them in labels, handles, option labels, text values and search keywords", () => {
+    expect(AdminCreateAttributeSchema.safeParse({ handle: "fabric", type: "select", label: { en: nul } }).success).toBe(false)
+    expect(AdminCreateAttributeSchema.safeParse({ handle: nul, type: "select", label: { en: "x" } }).success).toBe(false)
+    expect(
+      AdminCreateAttributeSchema.safeParse({
+        handle: "fabric",
+        type: "select",
+        label: { en: "x" },
+        options: [{ handle: "a", label: { en: nul } }],
+      }).success
+    ).toBe(false)
+    expect(
+      AdminSetProductAttributesSchema.safeParse({ values: [{ attribute_id: "a", value_text: { en: nul } }] }).success
+    ).toBe(false)
+    expect(AdminSetProductAttributesSchema.safeParse({ values: [], search_keywords: nul }).success).toBe(false)
+    expect(parseListQueryThrows({ q: nul })).toBe(true)
+  })
+
+  it("still accepts normal text with a line break or tab", () => {
+    expect(AdminSetProductAttributesSchema.safeParse({ values: [], search_keywords: "a\tb\nc" }).success).toBe(true)
+    expect(AdminCreateAttributeSchema.safeParse({ handle: "fabric", type: "select", label: { en: "Gold" } }).success).toBe(true)
+  })
+})
+
+function parseListQueryThrows(q: Record<string, unknown>): boolean {
+  try {
+    parseListQuery(q)
+    return false
+  } catch {
+    return true
+  }
+}

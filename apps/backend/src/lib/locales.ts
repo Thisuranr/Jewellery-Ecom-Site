@@ -1,4 +1,5 @@
 import { z } from "@medusajs/framework/zod"
+import { CONTROL_CHARS_MESSAGE, hasControlChars } from "./text-safety"
 
 /**
  * Every locale the store serves. This project is English only (Australia), so
@@ -34,7 +35,12 @@ export type L10nRead = { en: string | null; si: string | null; ta: string | null
 export function l10nSchema(max: number) {
   return z
     .object({
-      en: z.string().trim().min(1).max(max),
+      en: z
+        .string()
+        .trim()
+        .min(1)
+        .max(max)
+        .refine((v) => !hasControlChars(v), { message: CONTROL_CHARS_MESSAGE }),
     })
     .strict()
 }

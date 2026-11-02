@@ -40,7 +40,8 @@ const CartDropdown = ({
 
   const totalItems = countItems(cartState)
 
-  const subtotal = cartState?.subtotal ?? 0
+  // Items after any discount, GST included (shipping is added at checkout).
+  const subtotal = cartState?.item_total ?? 0
   const itemRef = useRef<number>(totalItems || 0)
 
   useEffect(() => {
@@ -206,7 +207,7 @@ const CartDropdown = ({
                   <div className="flex items-center justify-between">
                     <span className="text-ui-fg-base font-semibold">
                       Subtotal{" "}
-                      <span className="font-normal">(excl. taxes)</span>
+                      <span className="font-normal">(incl. GST)</span>
                     </span>
                     <span
                       className="text-large-semi"

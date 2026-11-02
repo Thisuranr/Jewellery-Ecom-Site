@@ -14,11 +14,34 @@ import {
   AdminUpdateEnquirySchema,
   StoreCreateEnquirySchema,
 } from '../modules/custom-enquiry/lib/rules'
+import { stripPaymentSessionData } from '../lib/sanitize-payment-session-body'
+import {
+  forceTaxInclusiveOnCreate,
+  forceTaxInclusiveOnUpdate,
+} from '../lib/force-tax-inclusive-promotion'
 
 // The product index declares filterable `status` and `sales_channel_ids`, so
 // the route narrows it to published products in the key's sales channels.
 export default defineMiddlewares({
   routes: [
+    // Never let a shopper pass PaymentIntent overrides (capture_method, confirm, ...) to Stripe.
+    {
+      method: ['POST'],
+      matcher: '/store/payment-collections/:id/payment-sessions',
+      middlewares: [stripPaymentSessionData],
+    },
+    // All prices include GST, so promotions must be tax-inclusive ("$10 off"
+    // means $10 off the GST-inclusive price, not $11).
+    {
+      method: ['POST'],
+      matcher: '/admin/promotions',
+      middlewares: [forceTaxInclusiveOnCreate],
+    },
+    {
+      method: ['POST'],
+      matcher: '/admin/promotions/:id',
+      middlewares: [forceTaxInclusiveOnUpdate],
+    },
     // Custom order enquiries (storefront form, and the admin status change).
     {
       method: ['POST'],

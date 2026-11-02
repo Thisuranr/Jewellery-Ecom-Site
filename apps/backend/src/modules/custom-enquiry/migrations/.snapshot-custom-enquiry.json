@@ -54,6 +54,22 @@
           "enumItems": [],
           "mappedType": "text"
         },
+        "email_normalized": {
+          "name": "email_normalized",
+          "type": "text",
+          "unsigned": false,
+          "autoincrement": false,
+          "primary": false,
+          "nullable": false,
+          "unique": false,
+          "length": null,
+          "precision": null,
+          "scale": null,
+          "default": "''",
+          "comment": null,
+          "enumItems": [],
+          "mappedType": "text"
+        },
         "phone": {
           "name": "phone",
           "type": "text",
@@ -191,6 +207,15 @@
           "primary": false,
           "unique": false,
           "expression": "CREATE INDEX IF NOT EXISTS \"IDX_custom_enquiry_email_created_at\" ON \"custom_enquiry\" (\"email\", \"created_at\") WHERE deleted_at IS NULL"
+        },
+        {
+          "keyName": "IDX_custom_enquiry_email_normalized_created_at",
+          "columnNames": [],
+          "composite": false,
+          "constraint": false,
+          "primary": false,
+          "unique": false,
+          "expression": "CREATE INDEX IF NOT EXISTS \"IDX_custom_enquiry_email_normalized_created_at\" ON \"custom_enquiry\" (\"email_normalized\", \"created_at\") WHERE deleted_at IS NULL"
         },
         {
           "keyName": "custom_enquiry_pkey",

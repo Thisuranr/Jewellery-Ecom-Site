@@ -1,9 +1,23 @@
 import { z } from "@medusajs/framework/zod"
+import { CONTROL_CHARS_MESSAGE, hasControlChars } from "../../../lib/text-safety"
 import { ENQUIRY_STATUSES } from "../models/custom-enquiry"
 
 /** At most this many enquiries from one email address inside the window. */
 export const MAX_ENQUIRIES_PER_EMAIL = 3
 export const THROTTLE_WINDOW_MS = 60 * 60 * 1000
+/** At most this many enquiries across the whole store inside the window (env CUSTOM_ENQUIRY_HOURLY_CAP). */
+export const DEFAULT_HOURLY_CAP = 30
+
+/** The global hourly cap: the env value when it is a positive whole number, else the default. */
+export function hourlyCap(env: string | undefined = process.env.CUSTOM_ENQUIRY_HOURLY_CAP): number {
+  const n = Number(env)
+  return env !== undefined && env.trim() !== "" && Number.isInteger(n) && n > 0 ? n : DEFAULT_HOURLY_CAP
+}
+
+/** True when `totalCount` enquiries in the window already use up the store-wide cap. */
+export function isOverCap(totalCount: number, cap: number = hourlyCap()): boolean {
+  return totalCount >= cap
+}
 
 /** Where the throttle window starts for a request made at `now`. */
 export function throttleWindowStart(now: Date = new Date()): Date {
@@ -16,7 +30,12 @@ export function isThrottled(recentCount: number): boolean {
 }
 
 // Text fields are trimmed first, so "   " is empty and a padded value is measured without its padding.
-const trimmed = z.string().trim()
+// No NUL or other control characters (tab, line feed and carriage return are fine).
+const trimmed = z
+  .string()
+  .trim()
+  .refine((v) => !hasControlChars(v), { message: CONTROL_CHARS_MESSAGE })
+
 /** An optional text: absent, null or blank becomes undefined. */
 const optional = (max: number) =>
   z

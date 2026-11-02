@@ -15,8 +15,11 @@ export type OrderRecord = {
   total?: number | string | null
   tax_total?: number | string | null
   shipping_total?: number | string | null
+  original_item_total?: number | string | null
+  item_total?: number | string | null
   discount_total?: number | string | null
-  discount_tax_total?: number | string | null
+  item_discount_total?: number | string | null
+  shipping_discount_total?: number | string | null
   customer?: { first_name?: string | null; last_name?: string | null } | null
   shipping_address?: {
     first_name?: string | null
@@ -34,6 +37,7 @@ export type OrderRecord = {
     variant_title?: string | null
     quantity?: number | string | null
     total?: number | string | null
+    original_total?: number | string | null
   }> | null
 }
 
@@ -49,7 +53,8 @@ export function emailItems(order: OrderRecord) {
     // "Default variant" is Medusa's placeholder for a product without options.
     variant_title: item.variant_title && item.variant_title !== "Default variant" ? item.variant_title : undefined,
     quantity: Math.max(0, Math.trunc(num(item.quantity))),
-    total_str: formatAud(num(item.total)),
+    // Line total before any discount, GST included (the Discount row shows the saving).
+    total_str: formatAud(num(item.original_total ?? item.total)),
   }))
 }
 
@@ -95,15 +100,24 @@ export function orderAccountUrl(order: { id: string }, env: NodeJS.ProcessEnv = 
 export function orderConfirmedData(order: OrderRecord, env: NodeJS.ProcessEnv = process.env) {
   const total = num(order.total)
   const shipping = num(order.shipping_total)
-  const discount = num(order.discount_total) + num(order.discount_tax_total)
+  // Medusa's discount_total already includes GST and also counts shipping discounts. The shipping
+  // row below is already after its discount, so the Discount row shows the item discount only.
+  const discount =
+    order.item_discount_total !== undefined && order.item_discount_total !== null
+      ? num(order.item_discount_total)
+      : Math.max(0, num(order.discount_total) - num(order.shipping_discount_total))
+  // Before any discount, GST included: what the items cost in total.
+  const subtotal =
+    order.original_item_total !== undefined && order.original_item_total !== null
+      ? num(order.original_item_total)
+      : total - shipping + discount
   return {
     order_display_id: String(order.display_id ?? order.id),
     order_date: orderDate(order),
     first_name: firstName(order),
     items: emailItems(order),
-    // Before any discount, GST included: what the items cost in total.
-    subtotal_str: formatAud(total - shipping + discount),
-    discount_str: discount > 0 ? `-${formatAud(discount)}` : undefined,
+    subtotal_str: formatAud(subtotal),
+    discount_str: discount > 0.004 ? `-${formatAud(discount)}` : undefined,
     shipping_str: shipping > 0 ? formatAud(shipping) : "Free",
     total_str: formatAud(total),
     gst_included_str: formatAud(num(order.tax_total)),
@@ -137,8 +151,11 @@ export const ORDER_EMAIL_FIELDS = [
   "total",
   "tax_total",
   "shipping_total",
+  "original_item_total",
+  "item_total",
   "discount_total",
-  "discount_tax_total",
+  "item_discount_total",
+  "shipping_discount_total",
   "customer.first_name",
   "customer.last_name",
   "shipping_address.first_name",
@@ -154,4 +171,5 @@ export const ORDER_EMAIL_FIELDS = [
   "items.variant_title",
   "items.quantity",
   "items.total",
+  "items.original_total",
 ]

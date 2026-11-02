@@ -6,8 +6,8 @@ import {
   search,
 } from "@medusajs/framework/utils";
 
-import { loadAttrData, toAttrValues, toCategoryIds } from "./helpers/attributes";
-import type { AttrData } from "./helpers/attributes";
+import { loadAttrData, loadCategoryFlags, toAttrValues, toCategoryFields } from "./helpers/attributes";
+import type { AttrData, CategoryFlags } from "./helpers/attributes";
 import {
   ATTRIBUTE_DEFINITION_UPDATED,
   ATTRIBUTE_OPTION_UPDATED,
@@ -29,6 +29,8 @@ const PRODUCT_GRAPH_FIELDS = [
   "categories.id",
   "categories.name",
   "categories.mpath",
+  "categories.is_active",
+  "categories.is_internal",
   "tags.value",
   "options.title",
   "options.values.value",
@@ -45,7 +47,13 @@ type ProductRow = {
   deleted_at?: string | Date | null;
   sales_channels?: ({ id?: string | null } | null)[] | null;
   categories?:
-    | ({ id?: string | null; name?: string | null; mpath?: string | null } | null)[]
+    | ({
+        id?: string | null;
+        name?: string | null;
+        mpath?: string | null;
+        is_active?: boolean | null;
+        is_internal?: boolean | null;
+      } | null)[]
     | null;
   tags?: ({ value?: string | null } | null)[] | null;
   options?: ProductOptionRow[] | null;
@@ -87,10 +95,9 @@ function toDocument(
   product: ProductRow,
   pricing: Parameters<typeof toProductPricing>[0],
   attrData: AttrData,
+  categoryFlags: CategoryFlags = {},
 ): ProductDocument {
-  const category = (product.categories ?? [])
-    .map((productCategory) => productCategory?.name?.trim())
-    .filter((name): name is string => Boolean(name));
+  const { category, category_ids } = toCategoryFields(product.categories, categoryFlags);
   const labels = (product.tags ?? [])
     .map((tag) => tag?.value?.trim())
     .filter((value): value is string => Boolean(value));
@@ -108,7 +115,7 @@ function toDocument(
     thumbnail: product.thumbnail ?? null,
     created_at: product.created_at ?? null,
     category,
-    category_ids: toCategoryIds(product.categories),
+    category_ids,
     labels,
     attr: toAttrValues(product.id, attrData),
     option_values: toOptionValues(product.options),
@@ -128,12 +135,13 @@ const source = {
     context: SearchTypes.SearchIngestionContext,
   ) => {
     const ids = rows.map((row) => row.id);
-    const [pricing, attrData] = await Promise.all([
+    const [pricing, attrData, categoryFlags] = await Promise.all([
       loadPricing(ids, context),
-      loadAttrData(ids, context),
+      loadAttrData(rows, context),
+      loadCategoryFlags(context),
     ]);
 
-    return rows.map((row) => toDocument(row, pricing.get(row.id), attrData));
+    return rows.map((row) => toDocument(row, pricing.get(row.id), attrData, categoryFlags));
   },
 };
 

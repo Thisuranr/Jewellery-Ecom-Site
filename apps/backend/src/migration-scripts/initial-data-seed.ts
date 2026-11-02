@@ -218,8 +218,8 @@ export default async function initial_data_seed({
           code: "standard",
         },
         prices: [
+          // One plain AUD price only: checkout uses it, so editing it in the admin takes effect.
           { currency_code: "aud", amount: 10 },
-          { region_id: region.id, amount: 10 },
         ],
         rules: storeRules,
       },
@@ -236,7 +236,6 @@ export default async function initial_data_seed({
         },
         prices: [
           { currency_code: "aud", amount: 18 },
-          { region_id: region.id, amount: 18 },
         ],
         rules: storeRules,
       },

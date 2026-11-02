@@ -1,5 +1,6 @@
 import { MedusaError } from "@medusajs/framework/utils"
 import { z } from "@medusajs/framework/zod"
+import { CONTROL_CHARS_MESSAGE, hasControlChars } from "../../../lib/text-safety"
 import { l10nSchema } from "../../../lib/locales"
 import { ATTRIBUTE_LABEL_MAX } from "../../../modules/attributes/lib/validate-definition"
 import { ATTRIBUTE_TYPES } from "../../../modules/attributes/models/attribute-definition"
@@ -11,7 +12,14 @@ import { ATTRIBUTE_TYPES } from "../../../modules/attributes/models/attribute-de
  * the admin pages can show.
  */
 
-const shortText = z.string().trim().max(100)
+/** A string with no NUL or other control characters (Postgres rejects NUL with a 500). */
+const noControl = (max: number) =>
+  z
+    .string()
+    .max(max)
+    .refine((v) => !hasControlChars(v), { message: CONTROL_CHARS_MESSAGE })
+
+const shortText = z.string().trim().max(100).refine((v) => !hasControlChars(v), { message: CONTROL_CHARS_MESSAGE })
 const smallInt = z.number().int().min(0).max(1_000_000)
 
 /** An option's `title_label`: English may be empty (the title then uses `label`). */
@@ -23,19 +31,19 @@ const titleL10nSchema = z
 
 const optionInputSchema = z
   .object({
-    handle: z.string().max(40),
+    handle: noControl(40),
     label: l10nSchema(ATTRIBUTE_LABEL_MAX),
     title_label: titleL10nSchema.nullable().optional(),
     rank: smallInt.optional(),
-    swatch_hex: z.string().max(7).nullable().optional(),
+    swatch_hex: noControl(7).nullable().optional(),
   })
   .strict()
 
 export const AdminCreateAttributeSchema = z
   .object({
-    handle: z.string().max(40),
+    handle: noControl(40),
     type: z.enum(ATTRIBUTE_TYPES),
-    unit: z.string().max(20).nullable().optional(),
+    unit: noControl(20).nullable().optional(),
     group_handle: shortText.nullable().optional(),
     filterable: z.boolean().optional(),
     required: z.boolean().optional(),
@@ -52,7 +60,7 @@ export const AdminCreateAttributeSchema = z
 export const AdminUpdateAttributeSchema = z
   .object({
     label: l10nSchema(ATTRIBUTE_LABEL_MAX).optional(),
-    unit: z.string().max(20).nullable().optional(),
+    unit: noControl(20).nullable().optional(),
     group_handle: shortText.nullable().optional(),
     filterable: z.boolean().optional(),
     required: z.boolean().optional(),
@@ -70,7 +78,7 @@ export const AdminSetAttributeCategoriesSchema = z
       .array(
         z
           .object({
-            category_id: z.string().min(1).max(100),
+            category_id: noControl(100).min(1),
             rank: smallInt.optional(),
             required_override: z.boolean().nullable().optional(),
           })
@@ -82,8 +90,8 @@ export const AdminSetAttributeCategoriesSchema = z
 
 const valueInputSchema = z
   .object({
-    attribute_id: z.string().min(1).max(100),
-    option_ids: z.array(z.string().min(1).max(100)).max(300).nullable().optional(),
+    attribute_id: noControl(100).min(1),
+    option_ids: z.array(noControl(100).min(1)).max(300).nullable().optional(),
     value_number: z.number().nullable().optional(),
     value_bool: z.boolean().nullable().optional(),
     // The planner enforces the real limit (500) with the code `text_too_long`.
@@ -95,12 +103,12 @@ export const AdminSetProductAttributesSchema = z
   .object({
     values: z.array(valueInputSchema).max(200),
     // The workflow enforces the real limit (500) with `search_keywords_too_long`.
-    search_keywords: z.string().max(5000).nullable().optional(),
+    search_keywords: noControl(5000).nullable().optional(),
   })
   .strict()
 
 const listQuerySchema = z.object({
-  q: z.string().trim().max(100).optional(),
+  q: shortText.optional(),
   limit: z.coerce.number().int().min(1).max(200).default(50),
   offset: z.coerce.number().int().min(0).default(0),
 })

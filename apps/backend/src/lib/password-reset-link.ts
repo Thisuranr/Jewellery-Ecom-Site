@@ -15,6 +15,7 @@ export function passwordResetLink(
   }
   const query = `token=${encodeURIComponent(token)}&email=${encodeURIComponent(email)}`
   if (actor === "customer") {
+    // storefrontUrl() already ends in the country segment (e.g. http://localhost:8000/au).
     return { email, url: `${storefrontUrl(env)}/account/reset-password?${query}` }
   }
   if (actor === "user") {

@@ -60,30 +60,29 @@ export const customEnquiryReceived: TemplateDefinition<CustomEnquiryReceivedProp
   element: (props) => <ReceivedEmail {...props} />,
 }
 
-/** To the customer: we received your request. */
-export type CustomEnquiryConfirmationProps = { name: string; message: string }
+/**
+ * To the customer: we received your request. Deliberately generic: it never repeats the name or message the
+ * visitor typed, so the form cannot be used to send chosen text (or links) to someone else's inbox.
+ */
+export type CustomEnquiryConfirmationProps = Record<string, never>
 
-const TC = "custom-enquiry-confirmation"
-
-function ConfirmationEmail(p: CustomEnquiryConfirmationProps) {
+function ConfirmationEmail() {
   return (
     <EmailLayout preview="We have received your custom order request.">
       <Text style={emailStyles.heading}>We received your request</Text>
-      <Text style={emailStyles.text}>Hello {p.name},</Text>
+      <Text style={emailStyles.text}>Hi there,</Text>
       <Text style={emailStyles.text}>
-        Thank you for getting in touch with {storeName()}. We have received your custom order request and will reply
-        by email as soon as we can. For your records, here is what you sent us:
+        We received your custom order request at {storeName()} and will reply within 2 business days. If you did not
+        send a request, you can ignore this email.
       </Text>
-      <Lines text={p.message} />
     </EmailLayout>
   )
 }
 
 export const customEnquiryConfirmation: TemplateDefinition<CustomEnquiryConfirmationProps> = {
-  parse(data) {
-    const o = asObject(data)
-    return { name: reqText(TC, o, "name", 200), message: reqText(TC, o, "message", 5000) }
+  parse() {
+    return {}
   },
   subject: () => `We received your custom order request - ${storeName()}`,
-  element: (props) => <ConfirmationEmail {...props} />,
+  element: () => <ConfirmationEmail />,
 }

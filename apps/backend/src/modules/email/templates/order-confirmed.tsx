@@ -3,13 +3,13 @@ import { EMAIL_ERROR, emailError } from "../lib/errors"
 import { asObject, optStringList, optText, reqArray, reqText, reqUrl } from "./data"
 import { EmailLayout, emailStyles } from "./layout"
 import { AddressLines, ItemRows, parseItem, TotalRow, type EmailItem } from "./order-parts"
-import { storeName } from "./strings"
+import { storeAbn, storeName } from "./strings"
 import type { TemplateDefinition } from "./types"
 
 /**
  * The customer's receipt, sent when an order is placed (Stripe payment captured). Amounts
- * arrive as ready-made strings ("A$49.00"); prices include 10% GST, shown as
- * "Includes GST of A$x". The subscriber builds the strings and the order link.
+ * arrive as ready-made strings ("$49.00"); prices include 10% GST, shown as
+ * "Includes GST of $x". The subscriber builds the strings and the order link.
  */
 export type OrderConfirmedProps = {
   order_display_id: string
@@ -30,11 +30,16 @@ const MAX_LINES = 8
 
 function OrderConfirmedEmail(p: OrderConfirmedProps) {
   return (
-    <EmailLayout preview={`Thank you for your order #${p.order_display_id}. Total ${p.total_str}.`}>
-      <Text style={emailStyles.heading}>Thank you for your order</Text>
+    <EmailLayout preview={`Tax invoice for your order #${p.order_display_id}. Total ${p.total_str}.`}>
+      <Text style={emailStyles.heading}>Tax invoice</Text>
+      <Text style={{ ...emailStyles.small, marginBottom: "16px" }}>
+        {storeName()}
+        {storeAbn() ? <br /> : null}
+        {storeAbn() ? `ABN ${storeAbn()}` : null}
+      </Text>
       <Text style={emailStyles.text}>{p.first_name ? `Hello ${p.first_name},` : "Hello,"}</Text>
       <Text style={emailStyles.text}>
-        We have received your order and your payment. Your order number is #{p.order_display_id}, placed on{" "}
+        Thank you for your order. We have received your order and your payment. Your order number is #{p.order_display_id}, placed on{" "}
         {p.order_date}.
       </Text>
       <ItemRows items={p.items} />
