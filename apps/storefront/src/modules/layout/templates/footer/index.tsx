@@ -1,187 +1,141 @@
-import { listCategories } from "@lib/data/categories";
-import { listCollections } from "@lib/data/collections";
-import { Text, clx } from "@modules/common/components/ui";
-
-import LocalizedClientLink from "@modules/common/components/localized-client-link";
+import { listCategories } from "@lib/data/categories"
 import { STORE_NAME } from "@lib/store-name"
+import LocalizedClientLink from "@modules/common/components/localized-client-link"
+
+const link =
+  "text-[14px] font-normal leading-6 text-ink underline decoration-transparent decoration-1 underline-offset-4 transition-colors duration-200 ease-out hover:decoration-ink"
+const head = "label mb-5 block text-ink"
 
 export default async function Footer() {
-  const [{ collections }, productCategories] = await Promise.all([
-    listCollections({ fields: "id,handle,title" }),
-    listCategories({
-      fields:
-        "id,name,handle,parent_category_id,category_children.id,category_children.name,category_children.handle",
-    }),
-  ]);
+  const all = await listCategories({
+    fields: "id,name,handle,rank,parent_category_id",
+    limit: 200,
+  }).catch(() => [])
+  const categories = all
+    .filter((c) => !c.parent_category_id)
+    .sort((a, b) => (a.rank ?? 0) - (b.rank ?? 0))
 
   return (
-    <footer className="border-t border-ui-border-base w-full">
-      <div className="content-container flex flex-col w-full">
-        <div className="flex flex-col gap-y-6 xsmall:flex-row items-start justify-between py-40">
-          <div>
-            <LocalizedClientLink
-              href="/"
-              className="txt-compact-xlarge-plus text-ui-fg-subtle hover:text-ui-fg-base uppercase"
-            >
-              {STORE_NAME}
-            </LocalizedClientLink>
+    <footer className="w-full border-t border-hairline bg-surface">
+      <div className="content-container pt-16 small:pt-20">
+        <div className="grid grid-cols-2 gap-x-6 gap-y-12 small:grid-cols-4 small:gap-x-12">
+          <div data-testid="footer-categories">
+            <span className={head}>Shop</span>
+            <ul className="space-y-2">
+              <li>
+                <LocalizedClientLink href="/store" className={link}>
+                  All jewellery
+                </LocalizedClientLink>
+              </li>
+              {categories.map((c) => (
+                <li key={c.id}>
+                  <LocalizedClientLink
+                    href={`/categories/${c.handle}`}
+                    className={link}
+                    data-testid="category-link"
+                  >
+                    {c.name}
+                  </LocalizedClientLink>
+                </li>
+              ))}
+            </ul>
           </div>
-          <div className="text-small-regular gap-10 md:gap-x-16 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4">
-            {productCategories && productCategories?.length > 0 && (
-              <div className="flex flex-col gap-y-2">
-                <span className="txt-small-plus txt-ui-fg-base">
-                  Categories
-                </span>
-                <ul
-                  className="grid grid-cols-1 gap-2"
-                  data-testid="footer-categories"
-                >
-                  {productCategories?.slice(0, 6).map((c) => {
-                    if (c.parent_category_id) {
-                      return;
-                    }
 
-                    const children =
-                      c.category_children?.map((child) => ({
-                        name: child.name,
-                        handle: child.handle,
-                        id: child.id,
-                      })) || null;
+          <div>
+            <span className={head}>Help</span>
+            <ul className="space-y-2">
+              <li>
+                <LocalizedClientLink href="/custom-order" className={link}>
+                  Custom orders
+                </LocalizedClientLink>
+              </li>
+              <li>
+                <LocalizedClientLink href="/shipping" className={link}>
+                  Shipping information
+                </LocalizedClientLink>
+              </li>
+              <li>
+                <LocalizedClientLink href="/returns" className={link}>
+                  Returns
+                </LocalizedClientLink>
+              </li>
+              <li>
+                <LocalizedClientLink href="/contact" className={link}>
+                  Contact
+                </LocalizedClientLink>
+              </li>
+              <li>
+                <LocalizedClientLink href="/search" className={link}>
+                  Search
+                </LocalizedClientLink>
+              </li>
+            </ul>
+          </div>
 
-                    return (
-                      <li
-                        className="flex flex-col gap-2 text-ui-fg-subtle txt-small"
-                        key={c.id}
-                      >
-                        <LocalizedClientLink
-                          className={clx(
-                            "hover:text-ui-fg-base",
-                            children && "txt-small-plus"
-                          )}
-                          href={`/categories/${c.handle}`}
-                          data-testid="category-link"
-                        >
-                          {c.name}
-                        </LocalizedClientLink>
-                        {children && (
-                          <ul className="grid grid-cols-1 ml-3 gap-2">
-                            {children &&
-                              children.map((child) => (
-                                <li key={child.id}>
-                                  <LocalizedClientLink
-                                    className="hover:text-ui-fg-base"
-                                    href={`/categories/${child.handle}`}
-                                    data-testid="category-link"
-                                  >
-                                    {child.name}
-                                  </LocalizedClientLink>
-                                </li>
-                              ))}
-                          </ul>
-                        )}
-                      </li>
-                    );
-                  })}
-                </ul>
-              </div>
-            )}
-            {collections && collections.length > 0 && (
-              <div className="flex flex-col gap-y-2">
-                <span className="txt-small-plus txt-ui-fg-base">
-                  Collections
-                </span>
-                <ul
-                  className={clx(
-                    "grid grid-cols-1 gap-2 text-ui-fg-subtle txt-small",
-                    {
-                      "grid-cols-2": (collections?.length || 0) > 3,
-                    }
-                  )}
-                >
-                  {collections?.slice(0, 6).map((c) => (
-                    <li key={c.id}>
-                      <LocalizedClientLink
-                        className="hover:text-ui-fg-base"
-                        href={`/collections/${c.handle}`}
-                      >
-                        {c.title}
-                      </LocalizedClientLink>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            )}
-            <div className="flex flex-col gap-y-2">
-              <span className="txt-small-plus txt-ui-fg-base">
-                Customer service
-              </span>
-              <ul className="grid grid-cols-1 gap-y-2 text-ui-fg-subtle txt-small">
-                <li>
-                  <LocalizedClientLink
-                    className="hover:text-ui-fg-base"
-                    href="/shipping"
-                  >
-                    Shipping information
-                  </LocalizedClientLink>
-                </li>
-                <li>
-                  <LocalizedClientLink
-                    className="hover:text-ui-fg-base"
-                    href="/returns"
-                  >
-                    Return policy
-                  </LocalizedClientLink>
-                </li>
-                <li>
-                  <LocalizedClientLink
-                    className="hover:text-ui-fg-base"
-                    href="/terms"
-                  >
-                    Terms of service
-                  </LocalizedClientLink>
-                </li>
-                <li>
-                  <LocalizedClientLink
-                    className="hover:text-ui-fg-base"
-                    href="/privacy"
-                  >
-                    Privacy policy
-                  </LocalizedClientLink>
-                </li>
-                <li>
-                  <LocalizedClientLink
-                    className="hover:text-ui-fg-base"
-                    href="/contact"
-                  >
-                    Contact
-                  </LocalizedClientLink>
-                </li>
-                <li>
-                  <LocalizedClientLink
-                    className="hover:text-ui-fg-base"
-                    href="/custom-order"
-                  >
-                    Custom orders
-                  </LocalizedClientLink>
-                </li>
-                <li>
-                  <LocalizedClientLink
-                    className="hover:text-ui-fg-base"
-                    href="/search"
-                  >
-                    Search
-                  </LocalizedClientLink>
-                </li>
-              </ul>
-            </div>
+          <div>
+            <span className={head}>About</span>
+            <ul className="space-y-2">
+              {/* No About or Care pages yet: placeholders until they exist. */}
+              <li>
+                <a href="#" className={link}>
+                  About us
+                </a>
+              </li>
+              <li>
+                <a href="#" className={link}>
+                  Care guide
+                </a>
+              </li>
+              <li>
+                <LocalizedClientLink href="/terms" className={link}>
+                  Terms of service
+                </LocalizedClientLink>
+              </li>
+              <li>
+                <LocalizedClientLink href="/privacy" className={link}>
+                  Privacy policy
+                </LocalizedClientLink>
+              </li>
+            </ul>
+          </div>
+
+          <div className="col-span-2 small:col-span-1">
+            <span className={head}>Newsletter</span>
+            <p className="mb-4 text-[14px] font-normal leading-6 text-muted">
+              News and new pieces, by email. Sign-up opens soon.
+            </p>
+            <form
+              aria-label="Newsletter (coming soon)"
+              className="flex flex-col gap-y-3 sm:flex-row sm:gap-y-0"
+            >
+              <input
+                type="email"
+                disabled
+                placeholder="Email address"
+                aria-label="Email address"
+                className="h-12 w-full min-w-0 border border-hairline bg-white px-4 text-[14px] font-normal placeholder:text-muted disabled:cursor-not-allowed disabled:opacity-60"
+              />
+              <button
+                type="submit"
+                disabled
+                className="label h-12 shrink-0 cursor-not-allowed border border-ink bg-ink px-6 text-white opacity-40 sm:border-l-0"
+              >
+                Subscribe
+              </button>
+            </form>
+            <p className="mt-3 text-[12px] font-normal text-muted">
+              Coming soon
+            </p>
           </div>
         </div>
-        <div className="flex w-full mb-16 justify-between text-ui-fg-muted">
-          <Text className="txt-compact-small">
-            © {new Date().getFullYear()} {STORE_NAME}. All rights reserved.
-          </Text>
+
+        <div className="mt-16 flex flex-col gap-y-2 border-t border-hairline py-8 text-[12px] font-normal text-muted small:flex-row small:items-center small:justify-between">
+          <p>
+            © {new Date().getFullYear()} {STORE_NAME}
+          </p>
+          <p>Prices in AUD incl. GST</p>
         </div>
       </div>
     </footer>
-  );
+  )
 }

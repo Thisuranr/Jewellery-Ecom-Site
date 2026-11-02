@@ -1,7 +1,7 @@
 "use client"
 
 import { Dialog, Transition } from "@headlessui/react"
-import { XMark } from "@medusajs/icons"
+import { CloseIcon } from "../icons"
 import React, { Fragment } from "react"
 
 type SearchDrawerProps = {
@@ -23,7 +23,7 @@ const SearchDrawer = ({ isOpen, close, children }: SearchDrawerProps) => {
           leaveFrom="opacity-100"
           leaveTo="opacity-0"
         >
-          <div className="fixed inset-0 bg-ui-bg-overlay backdrop-blur-sm" />
+          <div className="fixed inset-0 bg-black/40" />
         </Transition.Child>
 
         <div className="fixed inset-0 overflow-hidden">
@@ -41,19 +41,19 @@ const SearchDrawer = ({ isOpen, close, children }: SearchDrawerProps) => {
                 className="pointer-events-auto w-screen max-w-md"
                 data-testid="search-drawer"
               >
-                <div className="flex h-full flex-col border-l border-ui-border-base bg-ui-bg-base shadow-elevation-modal">
+                <div className="flex h-full flex-col border-l border-hairline bg-white">
                   <div className="flex items-center justify-between border-b border-ui-border-base px-4 py-3">
-                    <Dialog.Title className="text-large-semi text-ui-fg-base">
+                    <Dialog.Title className="label text-ink">
                       Search
                     </Dialog.Title>
                     <button
                       type="button"
                       onClick={close}
                       aria-label="Close search"
-                      className="text-ui-fg-muted hover:text-ui-fg-base"
+                      className="flex h-10 w-10 items-center justify-center text-ink"
                       data-testid="close-search-drawer"
                     >
-                      <XMark />
+                      <CloseIcon size={22} />
                     </button>
                   </div>
                   {children}

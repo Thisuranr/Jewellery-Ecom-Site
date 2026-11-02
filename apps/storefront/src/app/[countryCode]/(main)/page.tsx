@@ -1,8 +1,12 @@
 import { Metadata } from "next"
 
-import FeaturedProducts from "@modules/home/components/featured-products"
+import { getNavigation } from "@lib/data/navigation"
+import CategoryTiles from "@modules/home/components/category-tiles"
+import CustomOrderBand from "@modules/home/components/custom-order-band"
 import Hero from "@modules/home/components/hero"
-import { listCollections } from "@lib/data/collections"
+import MaterialStrip from "@modules/home/components/material-strip"
+import NewIn from "@modules/home/components/new-in"
+import TrustRow from "@modules/home/components/trust-row"
 import { getRegion, listRegions } from "@lib/data/regions"
 import { toJsonLd } from "@lib/util/product-structured-data"
 import { getSiteOrigin, listCountryCodes, STORE_NAME } from "@lib/util/site"
@@ -45,13 +49,11 @@ export default async function Home(props: {
 
   const region = await getRegion(countryCode)
 
-  const { collections } = await listCollections({
-    fields: "id, handle, title",
-  })
-
-  if (!collections || !region) {
+  if (!region) {
     return null
   }
+
+  const navigation = await getNavigation()
 
   const [origin, regions] = await Promise.all([getSiteOrigin(), listRegions()])
   const homeUrl = `${origin}/${countryCode}`
@@ -89,11 +91,11 @@ export default async function Home(props: {
         dangerouslySetInnerHTML={{ __html: toJsonLd(structuredData) }}
       />
       <Hero />
-      <div className="py-12">
-        <ul className="flex flex-col gap-x-6">
-          <FeaturedProducts collections={collections} region={region} />
-        </ul>
-      </div>
+      <CategoryTiles categories={navigation.categories} />
+      <MaterialStrip materials={navigation.materials} />
+      <NewIn region={region} />
+      <CustomOrderBand />
+      <TrustRow />
     </>
   )
 }

@@ -7,6 +7,7 @@ import { useHits, useInstantSearch } from "react-instantsearch"
 import useSearchSettled from "@lib/hooks/use-search-settled"
 import LocalizedClientLink from "@modules/common/components/localized-client-link"
 import { Text } from "@modules/common/components/ui"
+import { placeholderTypeFromText } from "@modules/common/components/placeholder"
 import Thumbnail from "@modules/products/components/thumbnail"
 import SkeletonProductGrid from "@modules/skeletons/templates/skeleton-product-grid"
 import SearchPagination from "./pagination"
@@ -84,10 +85,18 @@ const StoreHits = ({ hitsPerPage, currencyCode }: StoreHitsProps) => {
                   className="group"
                 >
                   <div data-testid="product-wrapper">
-                    <Thumbnail thumbnail={hit.thumbnail} size="full" />
-                    <div className="flex txt-compact-medium mt-4 justify-between">
+                    <Thumbnail
+                      thumbnail={hit.thumbnail}
+                      size="full"
+                      placeholderType={placeholderTypeFromText(
+                        ...(Array.isArray(hit.category)
+                          ? (hit.category as string[])
+                          : [])
+                      )}
+                    />
+                    <div className="flex mt-4 justify-between gap-x-3 text-[14px] leading-6">
                       <Text
-                        className="text-ui-fg-subtle"
+                        className="text-ink font-normal text-[14px] leading-6"
                         data-testid="product-title"
                       >
                         {hit.title}

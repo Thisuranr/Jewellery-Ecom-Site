@@ -20,6 +20,13 @@ module.exports = {
         padding: "padding-top padding-right padding-bottom padding-left",
       },
       colors: {
+        surface: "#F7F5F2",
+        "surface-dark": "#EFEBE4",
+        ink: "#111111",
+        muted: "#6B6760",
+        hairline: "#E7E3DC",
+        accent: "#B08D57",
+        sale: "#9B2C2C",
         grey: {
           0: "#FFFFFF",
           5: "#F9FAFB",
@@ -34,12 +41,20 @@ module.exports = {
           90: "#111827",
         },
       },
+      // Square corners everywhere; only circles (swatches, dots) stay round.
       borderRadius: {
         none: "0px",
-        soft: "2px",
-        base: "4px",
-        rounded: "8px",
-        large: "16px",
+        soft: "0px",
+        base: "0px",
+        rounded: "0px",
+        large: "0px",
+        sm: "0px",
+        DEFAULT: "0px",
+        md: "0px",
+        lg: "0px",
+        xl: "0px",
+        "2xl": "0px",
+        "3xl": "0px",
         circle: "9999px",
       },
       maxWidth: {
@@ -59,15 +74,23 @@ module.exports = {
       },
       fontFamily: {
         sans: [
-          "Inter",
+          "var(--font-jost)",
+          "Jost",
           "-apple-system",
           "BlinkMacSystemFont",
           "Segoe UI",
-          "Roboto",
           "Helvetica Neue",
-          "Ubuntu",
           "sans-serif",
         ],
+        display: [
+          "var(--font-cormorant)",
+          "Cormorant Garamond",
+          "Georgia",
+          "serif",
+        ],
+      },
+      letterSpacing: {
+        label: "0.16em",
       },
       keyframes: {
         ring: {

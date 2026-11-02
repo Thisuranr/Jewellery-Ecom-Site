@@ -51,11 +51,11 @@
 
 @layer components {
   .content-container {
-    @apply max-w-[1440px] w-full mx-auto px-6;
+    @apply max-w-[1440px] w-full mx-auto px-4 sm:px-8 small:px-12;
   }
 
   .contrast-btn {
-    @apply px-4 py-2 border border-black rounded-full hover:bg-black hover:text-white transition-colors duration-200 ease-in;
+    @apply px-4 py-2 border border-black hover:bg-black hover:text-white transition-colors duration-200 ease-in;
   }
 
   .text-xsmall-regular {
@@ -108,5 +108,98 @@
 
   .text-3xl-semi {
     @apply text-[32px] leading-[44px] font-semibold;
+  }
+}
+
+/*
+ * Design tokens. The Medusa UI preset reads these CSS variables, so overriding
+ * them here re-skins every starter component that still uses ui-* classes.
+ */
+:root {
+  --bg-base: #ffffff;
+  --bg-base-hover: #f7f5f2;
+  --bg-base-pressed: #efebe4;
+  --bg-subtle: #f7f5f2;
+  --bg-subtle-hover: #efebe4;
+  --bg-subtle-pressed: #e7e3dc;
+  --bg-component: #f7f5f2;
+  --bg-field: #ffffff;
+  --bg-field-hover: #f7f5f2;
+  --bg-disabled: #f7f5f2;
+  --fg-base: #111111;
+  --fg-subtle: #6b6760;
+  --fg-muted: #6b6760;
+  --fg-disabled: #b5b0a6;
+  --fg-interactive: #111111;
+  --fg-interactive-hover: #000000;
+  --fg-error: #b42318;
+  --border-base: #e7e3dc;
+  --border-strong: #cfc9bd;
+  --border-interactive: #111111;
+  --border-error: #b42318;
+  --elevation-card-rest: none;
+  --elevation-card-hover: none;
+  --elevation-flyout: none;
+  --elevation-tooltip: none;
+  --elevation-modal: none;
+  --elevation-commandbar: none;
+  --font-display-fallback: Georgia, serif;
+}
+
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    @apply font-sans font-light text-ink bg-white antialiased;
+    font-size: 15px;
+    line-height: 1.65;
+  }
+
+  :focus-visible {
+    outline: 2px solid #b08d57;
+    outline-offset: 2px;
+  }
+
+  ::selection {
+    background: #e7e3dc;
+  }
+
+  h1,
+  h2 {
+    @apply font-display;
+  }
+}
+
+@layer components {
+  /* Small uppercase label: nav, buttons, column heads. */
+  .label {
+    @apply font-medium uppercase text-[11px] leading-4 tracking-label;
+  }
+
+  .btn-solid {
+    @apply inline-flex items-center justify-center bg-ink text-white font-medium uppercase text-[12px] tracking-label px-8 h-12 border border-ink transition-colors duration-200 ease-out hover:bg-black hover:border-black;
+  }
+
+  .btn-outline {
+    @apply inline-flex items-center justify-center bg-transparent text-ink font-medium uppercase text-[12px] tracking-label px-8 h-12 border border-ink transition-colors duration-200 ease-out hover:bg-surface;
+  }
+
+  .link-fade {
+    @apply underline decoration-transparent underline-offset-4 decoration-1 transition-colors duration-200 ease-out hover:decoration-current;
+  }
+
+  .section-title {
+    @apply font-display font-normal text-[28px] leading-[1.15] small:text-[40px] text-ink;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
   }
 }

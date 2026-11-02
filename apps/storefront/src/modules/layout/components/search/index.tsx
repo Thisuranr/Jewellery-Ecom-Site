@@ -1,6 +1,6 @@
 "use client"
 
-import { MagnifyingGlass } from "@medusajs/icons"
+import { SearchIcon } from "../icons"
 import Link from "next/link"
 import { useParams } from "next/navigation"
 import { useCallback, useEffect, useRef, useState } from "react"
@@ -50,7 +50,7 @@ const SearchPanel = ({ onNavigate }: { onNavigate: () => void }) => {
   return (
     <>
       <div className="flex items-center gap-x-3 border-b border-ui-border-base px-4">
-        <MagnifyingGlass className="shrink-0 text-ui-fg-muted" />
+        <SearchIcon size={18} className="shrink-0 text-muted" />
         <input
           type="search"
           value={inputValue}
@@ -129,10 +129,11 @@ const Search = () => {
           open()
         }}
         aria-label="Search products"
-        className="flex items-center hover:text-ui-fg-base"
+        className="flex h-11 items-center gap-x-2 px-2 text-ink small:px-0"
         data-testid="nav-search-button"
       >
-        <MagnifyingGlass />
+        <SearchIcon />
+        <span className="label hidden medium:inline">Search</span>
       </Link>
 
       <SearchDrawer isOpen={isOpen} close={close}>
