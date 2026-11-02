@@ -6,6 +6,13 @@ import {
   search,
 } from "@medusajs/framework/utils";
 
+import { loadAttrData, toAttrValues, toCategoryIds } from "./helpers/attributes";
+import type { AttrData } from "./helpers/attributes";
+import {
+  ATTRIBUTE_DEFINITION_UPDATED,
+  ATTRIBUTE_OPTION_UPDATED,
+  PRODUCT_ATTRIBUTES_UPDATED,
+} from "../lib/events";
 import { ProductOptionRow, toOptionValues } from "./helpers/option-values";
 import { loadPricing, priceFields, toProductPricing } from "./helpers/pricing";
 import { resolveProductIds } from "./helpers/resolve-product-ids";
@@ -19,7 +26,9 @@ const PRODUCT_GRAPH_FIELDS = [
   "status",
   "created_at",
   "sales_channels.id",
+  "categories.id",
   "categories.name",
+  "categories.mpath",
   "tags.value",
   "options.title",
   "options.values.value",
@@ -35,7 +44,9 @@ type ProductRow = {
   created_at?: string | Date | null;
   deleted_at?: string | Date | null;
   sales_channels?: ({ id?: string | null } | null)[] | null;
-  categories?: ({ name?: string | null } | null)[] | null;
+  categories?:
+    | ({ id?: string | null; name?: string | null; mpath?: string | null } | null)[]
+    | null;
   tags?: ({ value?: string | null } | null)[] | null;
   options?: ProductOptionRow[] | null;
 };
@@ -52,7 +63,12 @@ const productFields = search.define({
   thumbnail: search.keyword().retrievable(),
   created_at: search.date().sortable().retrievable(),
   category: search.keyword().array().filterable().facetable().retrievable(),
+  // The product's categories and all their ancestors (category page filter).
+  category_ids: search.keyword().array().filterable().retrievable(false),
   labels: search.keyword().array().filterable().facetable().retrievable(),
+  // `handle:option`, `handle:true|false`, `handle:<number>` of filterable
+  // attributes; see helpers/attributes.ts.
+  attr: search.keyword().array().filterable().facetable().retrievable(),
   option_values: search
     .keyword()
     .array()
@@ -70,6 +86,7 @@ type ProductDocument = SearchTypes.InferSearchDocumentType<
 function toDocument(
   product: ProductRow,
   pricing: Parameters<typeof toProductPricing>[0],
+  attrData: AttrData,
 ): ProductDocument {
   const category = (product.categories ?? [])
     .map((productCategory) => productCategory?.name?.trim())
@@ -91,7 +108,9 @@ function toDocument(
     thumbnail: product.thumbnail ?? null,
     created_at: product.created_at ?? null,
     category,
+    category_ids: toCategoryIds(product.categories),
     labels,
+    attr: toAttrValues(product.id, attrData),
     option_values: toOptionValues(product.options),
     ...toProductPricing(pricing),
   };
@@ -108,12 +127,13 @@ const source = {
     rows: ProductRow[],
     context: SearchTypes.SearchIngestionContext,
   ) => {
-    const pricing = await loadPricing(
-      rows.map((row) => row.id),
-      context,
-    );
+    const ids = rows.map((row) => row.id);
+    const [pricing, attrData] = await Promise.all([
+      loadPricing(ids, context),
+      loadAttrData(ids, context),
+    ]);
 
-    return rows.map((row) => toDocument(row, pricing.get(row.id)));
+    return rows.map((row) => toDocument(row, pricing.get(row.id), attrData));
   },
 };
 
@@ -145,6 +165,10 @@ const PRODUCT_EVENTS = [
   "product-category.updated",
   "product-category.deleted",
   "sales-channel.deleted",
+  // Custom events of the attribute workflows (src/lib/events.ts).
+  PRODUCT_ATTRIBUTES_UPDATED,
+  ATTRIBUTE_OPTION_UPDATED,
+  ATTRIBUTE_DEFINITION_UPDATED,
 ];
 
 export default defineSearchIndex({

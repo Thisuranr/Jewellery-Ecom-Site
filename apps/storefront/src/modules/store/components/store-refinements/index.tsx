@@ -2,12 +2,14 @@
 
 import { useSortBy } from "react-instantsearch"
 
+import type { FilterAttribute } from "@lib/util/filter-attributes"
 import FilterRadioGroup from "@modules/common/components/filter-radio-group"
 import {
   CATEGORY_ATTRIBUTE,
   LABELS_ATTRIBUTE,
   getSortOptions,
 } from "./attributes"
+import AttributeRefinements from "./attribute-refinements"
 import CurrentRefinements from "./current-refinements"
 import OnSaleToggle from "./on-sale-toggle"
 import OptionRefinements from "./option-refinements"
@@ -29,15 +31,26 @@ const SortProducts = ({ currencyCode }: { currencyCode: string }) => {
   )
 }
 
-const StoreRefinements = ({ currencyCode }: { currencyCode: string }) => {
+const StoreRefinements = ({
+  currencyCode,
+  attributes = [],
+  hideCategory = false,
+}: {
+  currencyCode: string
+  attributes?: FilterAttribute[]
+  hideCategory?: boolean
+}) => {
   return (
     <div className="flex flex-col gap-12 py-4 mb-8 small:px-0 pl-6 small:w-[250px] small:shrink-0 small:ml-[1.675rem]">
       <SortProducts currencyCode={currencyCode} />
       <CurrentRefinements currencyCode={currencyCode} />
+      <AttributeRefinements attributes={attributes} />
       <OptionRefinements />
       <PriceRange currencyCode={currencyCode} />
       <OnSaleToggle currencyCode={currencyCode} />
-      <RefinementGroup attribute={CATEGORY_ATTRIBUTE} title="Category" />
+      {!hideCategory && (
+        <RefinementGroup attribute={CATEGORY_ATTRIBUTE} title="Category" />
+      )}
       <RefinementGroup attribute={LABELS_ATTRIBUTE} title="Labels" />
     </div>
   )

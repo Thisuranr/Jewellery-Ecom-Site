@@ -54,4 +54,5 @@ yarn-error.log*
 .Trashes
 ehthumbs.db
 Thumbs.db
-**/.DS_Storedump.rdb
+**/.DS_Store
+dump.rdb

@@ -67,6 +67,28 @@ async function productIdsInSalesChannels(
   }
 }
 
+/** The products holding rows of an attribute table that match `column`. */
+async function productIdsHoldingAttributeRows(
+  query: RemoteQueryFunction,
+  entity: string,
+  column: string,
+  ids: string[],
+): Promise<string[]> {
+  const { data } = await query.graph({
+    entity,
+    fields: ["product_id"],
+    filters: { [column]: ids },
+  });
+
+  return [
+    ...new Set(
+      (data as { product_id?: string | null }[])
+        .map((row) => row.product_id)
+        .filter((id): id is string => Boolean(id)),
+    ),
+  ];
+}
+
 /**
  * The products an event affects. A product event carries them directly; an
  * event about a variant, option, tag, category or sales channel is mapped to
@@ -132,6 +154,18 @@ export async function resolveProductIds(
         ids,
         (row) => (row.products ?? []).map((product: any) => product?.id),
         deleted,
+      );
+    // `product-attributes.updated` carries the product id.
+    case "product-attributes":
+      return ids;
+    case "attribute-option":
+      return productIdsHoldingAttributeRows(query, "product_attribute_option", "option_id", ids);
+    case "attribute-definition":
+      return productIdsHoldingAttributeRows(query, "product_attribute_option", "attribute_id", ids).then(
+        async (fromOptions) => [
+          ...fromOptions,
+          ...(await productIdsHoldingAttributeRows(query, "product_attribute_value", "attribute_id", ids)),
+        ],
       );
     case "sales-channel":
       return productIdsInSalesChannels(query, ids);

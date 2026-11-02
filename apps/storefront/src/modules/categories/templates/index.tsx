@@ -1,32 +1,27 @@
 import { notFound } from "next/navigation"
-import { Suspense } from "react"
 
 import InteractiveLink from "@modules/common/components/interactive-link"
-import SkeletonProductGrid from "@modules/skeletons/templates/skeleton-product-grid"
-import RefinementList from "@modules/store/components/refinement-list"
-import { SortOptions } from "@modules/store/components/refinement-list/sort-products"
-import PaginatedProducts from "@modules/store/templates/paginated-products"
+import CategoryListing from "@modules/categories/components/category-listing"
+import { listCategoryFilterAttributes } from "@lib/data/filter-attributes"
+import { getRegion } from "@lib/data/regions"
 import LocalizedClientLink from "@modules/common/components/localized-client-link"
 import { HttpTypes } from "@medusajs/types"
-import { OptionValueIds } from "@lib/util/product-option-filters"
 
-export default function CategoryTemplate({
+export default async function CategoryTemplate({
   category,
-  sortBy,
-  page,
   countryCode,
-  optionValueIds,
 }: {
   category: HttpTypes.StoreProductCategory
-  sortBy?: SortOptions
-  page?: string
   countryCode: string
-  optionValueIds?: OptionValueIds
 }) {
-  const pageNumber = page ? parseInt(page) : 1
-  const sort = sortBy || "created_at"
-
   if (!category || !countryCode) notFound()
+
+  const [region, attributes] = await Promise.all([
+    getRegion(countryCode),
+    listCategoryFilterAttributes(category.id),
+  ])
+
+  if (!region) notFound()
 
   const parents = [] as HttpTypes.StoreProductCategory[]
 
@@ -44,11 +39,6 @@ export default function CategoryTemplate({
       className="flex flex-col small:flex-row small:items-start py-6 content-container"
       data-testid="category-container"
     >
-      <RefinementList
-        sortBy={sort}
-        data-testid="sort-by-container"
-        hideOptionsPicker
-      />
       <div className="w-full">
         <div className="flex flex-row mb-8 text-2xl-semi gap-4">
           {parents &&
@@ -84,21 +74,11 @@ export default function CategoryTemplate({
             </ul>
           </div>
         )}
-        <Suspense
-          fallback={
-            <SkeletonProductGrid
-              numberOfProducts={category.products?.length ?? 8}
-            />
-          }
-        >
-          <PaginatedProducts
-            sortBy={sort}
-            page={pageNumber}
-            categoryId={category.id}
-            countryCode={countryCode}
-            optionValueIds={optionValueIds}
-          />
-        </Suspense>
+        <CategoryListing
+          categoryId={category.id}
+          currencyCode={region.currency_code}
+          attributes={attributes}
+        />
       </div>
     </div>
   )

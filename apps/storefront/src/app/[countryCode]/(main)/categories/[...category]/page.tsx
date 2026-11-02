@@ -3,18 +3,10 @@ import { notFound } from "next/navigation"
 
 import { getCategoryByHandle } from "@lib/data/categories"
 import CategoryTemplate from "@modules/categories/templates"
-import { SortOptions } from "@modules/store/components/refinement-list/sort-products"
-import { parseOptionValueIds } from "@lib/util/product-option-filters"
+import { STORE_NAME } from "@lib/store-name"
 
 type Props = {
   params: Promise<{ category: string[]; countryCode: string }>
-  searchParams: Promise<
-    Record<string, string | string[] | undefined> & {
-      sortBy?: SortOptions
-      page?: string
-      optionValueIds?: string | string[]
-    }
-  >
 }
 
 export async function generateMetadata(props: Props): Promise<Metadata> {
@@ -22,12 +14,12 @@ export async function generateMetadata(props: Props): Promise<Metadata> {
   try {
     const productCategory = await getCategoryByHandle(params.category)
 
-    const title = productCategory.name + " | Medusa Store"
+    const title = productCategory.name
 
     const description = productCategory.description ?? `${title} category.`
 
     return {
-      title: `${title} | Medusa Store`,
+      title: `${title} | ${STORE_NAME}`,
       description,
       alternates: {
         canonical: `${params.category.join("/")}`,
@@ -39,10 +31,7 @@ export async function generateMetadata(props: Props): Promise<Metadata> {
 }
 
 export default async function CategoryPage(props: Props) {
-  const searchParams = await props.searchParams
   const params = await props.params
-  const { sortBy, page } = searchParams
-  const optionValueIds = parseOptionValueIds(searchParams)
 
   const productCategory = await getCategoryByHandle(params.category)
 
@@ -53,10 +42,7 @@ export default async function CategoryPage(props: Props) {
   return (
     <CategoryTemplate
       category={productCategory}
-      sortBy={sortBy}
-      page={page}
       countryCode={params.countryCode}
-      optionValueIds={optionValueIds}
     />
   )
 }

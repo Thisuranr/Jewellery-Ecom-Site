@@ -1,6 +1,7 @@
 import { Metadata } from "next"
 import { notFound } from "next/navigation"
 
+import { listAllFilterAttributes } from "@lib/data/filter-attributes"
 import { getRegion } from "@lib/data/regions"
 import StoreTemplate from "@modules/store/templates"
 
@@ -19,5 +20,12 @@ export default async function StorePage(props: {
     notFound()
   }
 
-  return <StoreTemplate currencyCode={region.currency_code} />
+  const attributes = await listAllFilterAttributes()
+
+  return (
+    <StoreTemplate
+      currencyCode={region.currency_code}
+      attributes={attributes}
+    />
+  )
 }

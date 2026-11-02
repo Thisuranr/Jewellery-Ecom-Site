@@ -1,4 +1,5 @@
 import { loadEnv, defineConfig } from "@medusajs/framework/utils"
+import { emailNotificationModule } from "./src/lib/email-config"
 
 loadEnv(process.env.NODE_ENV || "development", process.cwd())
 
@@ -73,6 +74,11 @@ module.exports = defineConfig({
     // Jewellery attributes (material type, purity, colour...). See
     // src/modules/attributes.
     { resolve: "./src/modules/attributes" },
+    // Custom order enquiries from the storefront form. See src/modules/custom-enquiry.
+    { resolve: "./src/modules/custom-enquiry" },
+    // Transactional email: console transport (logged) until RESEND_API_KEY is set. Keeps
+    // Medusa's local "feed" provider too. See src/lib/email-config.ts.
+    emailNotificationModule(),
     // Stripe is the only payment method (provider id pp_stripe_stripe).
     // Payment methods shown at checkout (cards, Apple/Google Pay, Afterpay,
     // Zip) are switched on in the Stripe dashboard, not here, because

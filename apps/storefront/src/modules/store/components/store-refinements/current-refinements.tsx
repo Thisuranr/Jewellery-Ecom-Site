@@ -3,6 +3,7 @@
 import { XMarkMini } from "@medusajs/icons"
 import { useClearRefinements, useCurrentRefinements } from "react-instantsearch"
 
+import { ATTR_FIELD } from "@lib/util/filter-attributes"
 import { indexedCurrency, priceAttribute } from "@lib/search-client"
 import { convertToLocale } from "@lib/util/money"
 import {
@@ -47,6 +48,15 @@ function refinementLabel(refinement: Refinement, currencyCode: string) {
     return operator === "<=" || operator === "<"
       ? `Up to ${amount}`
       : `From ${amount}`
+  }
+
+  if (attribute === ATTR_FIELD) {
+    // "material_type:gold_plated" -> "Material type: Gold plated"
+    const [handle, ...rest] = String(value).split(":")
+    const words = (text: string) =>
+      text.charAt(0).toUpperCase() + text.slice(1).replace(/_/g, " ")
+
+    return `${words(handle)}: ${words(rest.join(":"))}`
   }
 
   if (attribute === CATEGORY_ATTRIBUTE) {

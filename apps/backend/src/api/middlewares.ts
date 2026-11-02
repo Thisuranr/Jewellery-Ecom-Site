@@ -10,11 +10,26 @@ import {
   AdminSetProductAttributesSchema,
   AdminUpdateAttributeSchema,
 } from './admin/attributes/validators'
+import {
+  AdminUpdateEnquirySchema,
+  StoreCreateEnquirySchema,
+} from '../modules/custom-enquiry/lib/rules'
 
 // The product index declares filterable `status` and `sales_channel_ids`, so
 // the route narrows it to published products in the key's sales channels.
 export default defineMiddlewares({
   routes: [
+    // Custom order enquiries (storefront form, and the admin status change).
+    {
+      method: ['POST'],
+      matcher: '/store/custom-enquiries',
+      middlewares: [validateAndTransformBody(StoreCreateEnquirySchema)],
+    },
+    {
+      method: ['POST'],
+      matcher: '/admin/custom-enquiries/:id',
+      middlewares: [validateAndTransformBody(AdminUpdateEnquirySchema)],
+    },
     {
       method: ['POST'],
       matcher: '/store/search',
