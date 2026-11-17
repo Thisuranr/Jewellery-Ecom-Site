@@ -4,7 +4,7 @@ Online jewellery store for a client in Australia. Store name not decided yet (pl
 
 **Priorities right now:** backend, admin and product data model first. The storefront stays plain and functional until the client picks a design direction; UI polish comes last.
 
-**Credit cap:** this session runs on a fixed Claude credit grant. Stop before going over it (see rule 7). The user reads the balance from their account and tells us; we keep a running estimate in between.
+**Usage:** the one-off Claude credit grant is used up; work now counts against the user's normal weekly allowance. Follow rule 8 (read the figure from the account, keep to any line the user sets) and keep stages lean.
 
 # How we work: save tokens, keep the quality
 
