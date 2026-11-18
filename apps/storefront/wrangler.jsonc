@@ -1,0 +1,59 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "main": ".open-next/worker.js",
+  "name": "azira-web",
+  // Must be >= 2024-09-23 for OpenNext. Keep it at or before the date of the workerd
+  // that the pinned wrangler bundles (wrangler 4.154.0 ships workerd 1.20261023.1).
+  "compatibility_date": "2026-10-01",
+  "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
+  // The storefront is served on the apex and on www, as Workers custom domains
+  // (the azira.com.au zone must be in the same Cloudflare account; Cloudflare
+  // creates the DNS records). NEXT_PUBLIC_BASE_URL decides which one is canonical.
+  "routes": [
+    { "pattern": "azira.com.au", "custom_domain": true },
+    { "pattern": "www.azira.com.au", "custom_domain": true }
+  ],
+  "assets": {
+    "directory": ".open-next/assets",
+    "binding": "ASSETS"
+  },
+  "services": [
+    {
+      // Lets the worker call itself (used by OpenNext for cache revalidation).
+      // "service" must equal "name" above.
+      "binding": "WORKER_SELF_REFERENCE",
+      "service": "azira-web"
+    }
+  ],
+  "r2_buckets": [
+    {
+      // Incremental cache. Create it first: wrangler r2 bucket create azira-next-cache
+      "binding": "NEXT_INC_CACHE_R2_BUCKET",
+      "bucket_name": "azira-next-cache"
+    }
+  ],
+  "durable_objects": {
+    "bindings": [
+      {
+        // Revalidation queue.
+        "name": "NEXT_CACHE_DO_QUEUE",
+        "class_name": "DOQueueHandler"
+      }
+    ]
+  },
+  "migrations": [
+    {
+      "tag": "v1",
+      "new_sqlite_classes": ["DOQueueHandler"]
+    }
+  ],
+  "d1_databases": [
+    {
+      // Tag cache. Create it first: wrangler d1 create azira-tag-cache
+      // then replace database_id below with the id it prints.
+      "binding": "NEXT_TAG_CACHE_D1",
+      "database_name": "azira-tag-cache",
+      "database_id": "REPLACE_AFTER_wrangler_d1_create"
+    }
+  ]
+}

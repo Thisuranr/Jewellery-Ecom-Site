@@ -1,0 +1,137 @@
+name: Backend image
+
+# Builds the production image of the Medusa backend (infra/docker/backend.Dockerfile)
+# and pushes it to GitHub Container Registry as
+#   ghcr.io/<owner>/azira-backend:<commit sha>
+# The droplet pulls that exact tag (backend-deploy, infra/deploy/deploy.sh).
+#
+# Triggers: by hand (workflow_dispatch builds the branch you pick) and from
+# backend-deploy.yml (workflow_call), which is what runs on a push to main. It has
+# no push trigger of its own, so a push builds once, not twice.
+#
+# - The admin dashboard bundle bakes the admin host in at build time: ADMIN_URL
+#   (repository variable, default https://admin.azira.com.au).
+# - The only tag is the commit sha, and an existing tag is never overwritten:
+#   running this again for a sha that already has an image keeps the old one.
+# - GIT_SHA becomes the image's org.opencontainers.image.revision label.
+#   deploy.sh refuses any image whose label differs from the sha it was asked to
+#   deploy, so this workflow checks the label after the push.
+# - Pushing needs no secret: it uses the run's GITHUB_TOKEN.
+# - Every third-party action is pinned to a full commit SHA.
+on:
+  workflow_dispatch:
+  workflow_call:
+    outputs:
+      sha:
+        description: The commit sha the image was built from (its tag).
+        value: ${{ jobs.build.outputs.sha }}
+
+# One build per commit; a build is never cancelled halfway, so a sha is either
+# fully pushed or not at all.
+concurrency:
+  group: backend-image-${{ github.sha }}
+  cancel-in-progress: false
+
+permissions: {}
+
+jobs:
+  build:
+    name: Build and push the backend image
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    # packages: write is needed here and nowhere else.
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      sha: ${{ github.sha }}
+    env:
+      ADMIN_URL: ${{ vars.ADMIN_URL || 'https://admin.azira.com.au' }}
+    steps:
+      - name: Check ADMIN_URL and name the image
+        id: names
+        env:
+          OWNER: ${{ github.repository_owner }}
+        run: |
+          set -euo pipefail
+          # One host, https, no path or trailing slash. The value goes into the
+          # build as ADMIN_BACKEND_URL, so a newline or a space must not pass.
+          url_re='^https://[a-z0-9]([a-z0-9.-]*[a-z0-9])?(:[0-9]{1,5})?$'
+          if ! [[ $ADMIN_URL =~ $url_re ]]; then
+            echo "::error title=ADMIN_URL is not valid::The repository variable ADMIN_URL must look like https://admin.azira.com.au (https, lowercase host, no path, no trailing slash)."
+            exit 1
+          fi
+          # GHCR repository names are lowercase; account names may not be.
+          owner="$(printf '%s' "$OWNER" | tr '[:upper:]' '[:lower:]')"
+          echo "image=ghcr.io/${owner}/azira-backend" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+
+      - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # The sha tag is immutable: if it exists, keep that image.
+      - name: Look for an existing image
+        id: existing
+        env:
+          IMAGE: ${{ steps.names.outputs.image }}
+        run: |
+          set -euo pipefail
+          if docker buildx imagetools inspect "${IMAGE}:${GITHUB_SHA}" > /dev/null 2>&1; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+            echo "::notice title=Image already exists::${IMAGE}:${GITHUB_SHA} is already in the registry and is not overwritten. It is checked below."
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      # The repository root is the context (the Dockerfile copies the lockfile
+      # and workspace files); /.dockerignore filters it. No secret is used at
+      # build time. provenance and sbom are off so the tag is one plain image
+      # manifest. The source label links the package to this repository, so this
+      # repository's runs can pull it with GITHUB_TOKEN.
+      - name: Build and push
+        id: build
+        if: steps.existing.outputs.exists != 'true'
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          file: infra/docker/backend.Dockerfile
+          platforms: linux/amd64
+          push: true
+          tags: ${{ steps.names.outputs.image }}:${{ github.sha }}
+          build-args: |
+            ADMIN_BACKEND_URL=${{ env.ADMIN_URL }}
+            GIT_SHA=${{ github.sha }}
+          labels: |
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+          provenance: false
+          sbom: false
+          cache-from: type=gha,scope=backend-image
+          cache-to: type=gha,mode=max,scope=backend-image
+
+      # deploy.sh compares this label with the sha it is asked to deploy.
+      - name: Check the revision label
+        env:
+          IMAGE: ${{ steps.names.outputs.image }}
+        run: |
+          set -euo pipefail
+          ref="${IMAGE}:${GITHUB_SHA}"
+          docker pull --quiet "$ref" > /dev/null
+          revision="$(docker image inspect --format '{{ index .Config.Labels "org.opencontainers.image.revision" }}' "$ref")"
+          if [ "$revision" != "$GITHUB_SHA" ]; then
+            echo "::error title=Revision label mismatch::${ref} has the revision label '${revision}'. deploy.sh would refuse it. Check that the build passes --build-arg GIT_SHA."
+            exit 1
+          fi
+          {
+            echo "### Backend image"
+            echo
+            echo "- Image: \`${ref}\`"
+            echo "- Admin URL baked in: \`${ADMIN_URL}\`"
+          } >> "$GITHUB_STEP_SUMMARY"

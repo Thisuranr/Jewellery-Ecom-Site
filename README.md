@@ -1,4 +1,4 @@
-# Jewellery Store (Australia)
+# Azira (jewellery store, Australia)
 
 Medusa v2 backend + Next.js storefront for an Australian jewellery shop (AUD, prices include GST, Stripe). Built on the Medusa DTC starter; project notes are in `CLAUDE.md` and `docs/research/`.
 

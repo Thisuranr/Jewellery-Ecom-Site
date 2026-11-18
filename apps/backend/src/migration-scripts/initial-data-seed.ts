@@ -65,7 +65,7 @@ export default async function initial_data_seed({
     ModuleRegistrationName.FULFILLMENT
   );
 
-  const storeName = process.env.STORE_NAME || "Jewellery Store";
+  const storeName = process.env.STORE_NAME || "Azira";
 
   logger.info("Seeding store data...");
   const {

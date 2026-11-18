@@ -1,0 +1,41 @@
+# Build context for infra/docker/backend.Dockerfile, which builds from the repo
+# root (plan M2 I1). Keep secrets, build output and the storefront out of it.
+
+# Dependencies and build output (the image installs and builds its own)
+**/node_modules
+**/.medusa
+**/.next
+**/.open-next
+**/.wrangler
+**/.turbo
+**/.cache
+**/dist
+**/coverage
+
+# Secrets and local config: never in the image
+**/.env
+**/.env.*
+**/*.pem
+**/*.key
+**/*.crt
+**/*.p12
+
+# Local file uploads (FILE_PROVIDER=local writes here in development)
+apps/backend/static
+apps/backend/uploads
+
+# Not needed to build the backend
+.git
+.github
+.claude
+.vscode
+.idea
+docs
+infra
+**/*.log
+
+# The storefront is a separate workspace project. Only its package.json stays,
+# so the workspace still matches pnpm-lock.yaml's importers and
+# `pnpm install --frozen-lockfile` accepts the lockfile.
+apps/storefront/*
+!apps/storefront/package.json

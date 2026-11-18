@@ -1,0 +1,13 @@
+#!/usr/bin/env bash
+# Test stub: records each -c statement and answers the queries restore.sh asks.
+set -euo pipefail
+sql=""
+while (( $# )); do [[ "$1" == -c ]] && sql="$2"; shift; done
+printf '%s\n' "$sql" >>"$STUB_LOG/psql.sql"
+[[ "${STUB_PSQL_DOWN:-0}" == 1 ]] && { echo "psql: error: connection refused" >&2; exit 2; }
+case "$sql" in
+  *relkind*) echo "${STUB_TABLES:-0}" ;;
+  *pg_extension*) echo "${STUB_PLACED:-pg_trgm=extensions unaccent=extensions}" ;;
+  *unnest*) printf '%s\n' product=3 order=2 customer=2 payment=4 ;;
+  *"max(created_at)"*) echo "2026-10-29T05:58:12.345+00:00" ;;
+esac

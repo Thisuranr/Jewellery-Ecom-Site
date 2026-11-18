@@ -56,3 +56,8 @@ ehthumbs.db
 Thumbs.db
 **/.DS_Store
 dump.rdb
+
+# Cloudflare / OpenNext build output and local secrets
+.open-next
+.wrangler
+.dev.vars

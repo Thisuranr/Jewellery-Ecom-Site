@@ -1,0 +1,35 @@
+# Reference for the Cloudflare Tunnel's public hostnames (Azira).
+#
+# The tunnel is REMOTELY MANAGED: cloudflared on the droplet starts with only
+# TUNNEL_TOKEN (GitHub secret TUNNEL_TOKEN, written to /opt/azira/tunnel.env by
+# apply-env.sh), and the hostnames below live in the Cloudflare dashboard
+# (Zero Trust > Networks > Tunnels > <tunnel> > Public Hostname), or are set by
+# the lead through the API. This file is the record of what must be configured
+# there, and it is also valid as a locally-managed config if you ever prefer
+# that (then mount it plus the credentials file into the cloudflared container
+# and drop TUNNEL_TOKEN).
+#
+# Both hostnames point at the one Medusa origin on the compose network
+# (service `medusa`, port 9000). They are told apart at the Cloudflare edge:
+#   api.azira.com.au    WAF rule blocks /app, /admin, /auth/user, /auth/session (rules.md)
+#   admin.azira.com.au  optionally behind Cloudflare Access (access.md)
+# Anything else that reaches the tunnel gets a 404.
+#
+#   api.azira.com.au    store API, /auth, and /hooks (Stripe webhooks:
+#                       /hooks/payment/stripe_stripe)
+#   admin.azira.com.au  admin dashboard (/app) and the admin API
+#
+# Validate the file form (needs no account):
+#   cloudflared tunnel --config <this file> ingress validate
+# The tunnel id and credentials file below are placeholders for the local form only.
+
+tunnel: 00000000-0000-0000-0000-000000000000
+credentials-file: /etc/cloudflared/credentials.json
+metrics: 127.0.0.1:20241
+
+ingress:
+  - hostname: api.azira.com.au
+    service: http://medusa:9000
+  - hostname: admin.azira.com.au
+    service: http://medusa:9000
+  - service: http_status:404

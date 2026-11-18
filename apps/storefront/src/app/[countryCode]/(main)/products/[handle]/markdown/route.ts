@@ -9,7 +9,7 @@ const HEADERS = {
   Vary: "Accept",
 }
 
-/** Served for `<product-url>.md` and `Accept: text/markdown` via rewrites in next.config.js. */
+/** Served for `<product-url>.md` and `Accept: text/markdown` via rewrites in next.config.mjs. */
 export async function GET(
   request: Request,
   { params }: { params: Promise<{ countryCode: string; handle: string }> }

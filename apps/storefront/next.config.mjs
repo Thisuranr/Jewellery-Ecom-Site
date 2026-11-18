@@ -1,12 +1,10 @@
-const checkEnvVariables = require("./check-env-variables")
+import { initOpenNextCloudflareForDev } from "@opennextjs/cloudflare"
+import checkEnvVariables from "./check-env-variables.js"
+
+// Makes the Cloudflare bindings declared in wrangler.jsonc available to `next dev`.
+initOpenNextCloudflareForDev()
 
 checkEnvVariables()
-
-/**
- * Medusa Cloud-related environment variables
- */
-const S3_HOSTNAME = process.env.MEDUSA_CLOUD_S3_HOSTNAME
-const S3_PATHNAME = process.env.MEDUSA_CLOUD_S3_PATHNAME
 
 // AI-agent checkout (UCP) is off unless UCP_ENABLED=true: its totals are not GST-correct, and the
 // client does not need it. When off, every UCP URL is a 404 and nothing links to it.
@@ -65,32 +63,17 @@ const nextConfig = {
   typescript: {
     ignoreBuildErrors: true,
   },
+  // Product images go through Cloudflare Image Transformations on the image
+  // host (img.azira.com.au). A custom loader means /_next/image is never used,
+  // so the Worker does no image work. Four widths keep the number of
+  // transformations low; see src/lib/image-loader.ts. Images on any other host
+  // (the local /static files of the dev backend) are loaded untouched.
   images: {
-    unoptimized: true,
-    remotePatterns: [
-      {
-        protocol: "http",
-        hostname: "localhost",
-      },
-      {
-        protocol: "https",
-        hostname: "*.s3.*.amazonaws.com",
-      },
-      {
-        protocol: "https",
-        hostname: "*.s3.amazonaws.com",
-      },
-      ...(S3_HOSTNAME && S3_PATHNAME
-        ? [
-            {
-              protocol: "https",
-              hostname: S3_HOSTNAME,
-              pathname: S3_PATHNAME,
-            },
-          ]
-        : []),
-    ],
+    loader: "custom",
+    loaderFile: "./src/lib/image-loader.ts",
+    deviceSizes: [320, 640, 960, 1440],
+    imageSizes: [],
   },
 }
 
-module.exports = nextConfig
+export default nextConfig

@@ -1,0 +1,42 @@
+#!/usr/bin/env bash
+# Test stub: a canned table of contents and DDL; a restore records its list.
+set -euo pipefail
+printf '%s\n' "$*" >>"$STUB_LOG/pg_restore.args"
+file="${*: -1}"
+if [[ "$(head -c 5 "$file")" != PGDMP ]]; then
+  echo "pg_restore: error: input file does not appear to be a valid archive" >&2
+  exit 1
+fi
+ext="${STUB_EXT_SCHEMA:-extensions}"
+case "$*" in
+  "-l "*)
+    cat <<TOC
+;
+; Archive created at 2026-10-29 06:00:05 UTC
+;
+; Selected TOC Entries:
+;
+5; 2615 2200 SCHEMA - public pg_database_owner
+4419; 0 0 COMMENT - SCHEMA public pg_database_owner
+231; 3602 16500 TEXT SEARCH CONFIGURATION public medusa_search_lk postgres
+240; 1259 16400 TABLE public order postgres
+5000; 0 16400 TABLE DATA public order postgres
+6000; 1259 16600 INDEX public search_pg_product_v2_trgm_idx postgres
+TOC
+    ;;
+  *--schema-only*)
+    if [[ "$ext" == mixed ]]; then
+      echo "ALTER TEXT SEARCH CONFIGURATION public.medusa_search_lk ADD MAPPING FOR word WITH extensions.unaccent, simple;"
+      echo "CREATE INDEX search_pg_product_v2_trgm_idx ON public.search_pg_product_v2 USING gin (search_text public.gin_trgm_ops);"
+    elif [[ "$ext" != none ]]; then
+      echo "ALTER TEXT SEARCH CONFIGURATION public.medusa_search_lk ADD MAPPING FOR word WITH $ext.unaccent, simple;"
+      echo "CREATE INDEX search_pg_product_v2_trgm_idx ON public.search_pg_product_v2 USING gin (search_text $ext.gin_trgm_ops);"
+    fi
+    echo "CREATE TABLE public.\"order\" (id text NOT NULL, created_at timestamp with time zone);"
+    ;;
+  *" -d "*)
+    while (( $# )); do [[ "$1" == -L ]] && cp "$2" "$STUB_LOG/restore.list"; shift; done
+    exit "${STUB_RESTORE_STATUS:-0}"
+    ;;
+  *) echo "stub pg_restore: unexpected call: $*" >&2; exit 98 ;;
+esac

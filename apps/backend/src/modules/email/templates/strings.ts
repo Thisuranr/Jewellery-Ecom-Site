@@ -2,7 +2,7 @@
 
 /** The shop's name in emails: STORE_NAME, read at render time. */
 export function storeName(env: NodeJS.ProcessEnv = process.env): string {
-  return env.STORE_NAME?.trim() || "the store"
+  return env.STORE_NAME?.trim() || "Azira"
 }
 
 /** The seller's ABN for the tax invoice: STORE_ABN, or undefined when unset (the line is then left out). */

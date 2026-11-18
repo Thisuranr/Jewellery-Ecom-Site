@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+# Test stub: reads the "-K -" config from stdin and records the URL it would ping.
+set -euo pipefail
+sed -n 's/^url = "\(.*\)"$/\1/p' >>"$STUB_LOG/heartbeats"

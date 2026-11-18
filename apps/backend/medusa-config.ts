@@ -1,7 +1,24 @@
 import { loadEnv, defineConfig } from "@medusajs/framework/utils"
+import { databaseDriverOptions } from "./src/lib/database-tls"
 import { emailNotificationModule } from "./src/lib/email-config"
+import { fileModuleConfig } from "./src/lib/file-storage"
+import { assertProductionEnv } from "./src/lib/production-env"
 
 loadEnv(process.env.NODE_ENV || "development", process.cwd())
+
+// With NODE_ENV=production, every command except `medusa build` stops here,
+// listing every missing, unsafe or placeholder setting (database TLS, Redis,
+// secrets, CORS, Stripe, R2, Resend, public URLs) by name. See
+// src/lib/production-env.ts. Development is not affected.
+assertProductionEnv(process.env, process.argv)
+
+// Always explicit, for the server's pg pool and for the MikroORM connections
+// `medusa db:migrate` opens: { ssl: false } for a local database, verified TLS
+// ({ rejectUnauthorized: true, ca } from DB_CA_PATH) when DB_SSL=true. Throws
+// here, before any connection, for a remote database without DB_SSL=true or a
+// DATABASE_URL the two connection paths would read differently. See
+// src/lib/database-tls.ts.
+const dbDriverOptions = databaseDriverOptions()
 
 const redisUrl = process.env.REDIS_URL
 
@@ -48,6 +65,7 @@ const redisModules = redisUrl
 module.exports = defineConfig({
   projectConfig: {
     databaseUrl: process.env.DATABASE_URL,
+    databaseDriverOptions: dbDriverOptions,
     redisUrl,
     workerMode: (process.env.WORKER_MODE || "shared") as
       | "shared"
@@ -71,6 +89,10 @@ module.exports = defineConfig({
   },
   modules: [
     { resolve: "@medusajs/medusa/translation" },
+    // File storage: the local provider in development, Cloudflare R2 through the
+    // S3 provider when FILE_PROVIDER=s3 (production). Replaces defineConfig's
+    // default local provider; see src/lib/file-storage.ts.
+    fileModuleConfig(),
     // Jewellery attributes (material type, purity, colour...). See
     // src/modules/attributes.
     { resolve: "./src/modules/attributes" },
@@ -97,7 +119,7 @@ module.exports = defineConfig({
               // order page in the admin.
               capture: true,
               automaticPaymentMethods: true,
-              paymentDescription: process.env.STORE_NAME || "Jewellery order",
+              paymentDescription: process.env.STORE_NAME || "Azira",
             },
           },
         ],

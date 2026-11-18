@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+# Test stand-in for `flock -n <fd>`, installed as `flock` only where util-linux
+# flock is missing (Git Bash on Windows). It can't lock the caller's fd, so the
+# "already locked" case is driven by $STUB_LOCK_HELD instead of a real lock.
+[[ ${STUB_LOCK_HELD:-0} == 1 ]] && exit 1
+exit 0

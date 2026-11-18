@@ -1,0 +1,56 @@
+#!/usr/bin/env bash
+# Test stub: maps the remote "r2:<bucket>/<key>" to "$STUB_R2/<bucket>/<key>".
+set -euo pipefail
+printf '%s\n' "$*" >>"$STUB_LOG/rclone.args"
+local_path() {
+  [[ "$1" == r2:* ]] || { echo "stub rclone: unexpected remote $1" >&2; exit 97; }
+  printf '%s/%s' "$STUB_R2" "${1#r2:}"
+}
+# STUB_R2_LOCKED=1: an R2 bucket lock rule (infra/cloudflare/r2.md). Objects
+# cannot be deleted or overwritten; creating a new object still works.
+locked() { [[ -n "${STUB_R2_LOCKED:-}" ]]; }
+refuse_locked() { echo "stub rclone: HTTP 409: object is protected by a bucket lock rule" >&2; exit 1; }
+cmd="$1"; shift
+recursive=0; args=()
+while (( $# )); do
+  case "$1" in
+    --format|--include) shift 2 ;;
+    -R) recursive=1; shift ;;
+    --*) shift ;;
+    *) args+=("$1"); shift ;;
+  esac
+done
+case "$cmd" in
+  rcat) f="$(local_path "${args[0]}")"; mkdir -p "$(dirname "$f")"; cat >"$f" ;;
+  lsf)
+    d="$(local_path "${args[0]}")"
+    if (( recursive )); then
+      [[ -d "$d" ]] || exit 0
+      (cd "$d" && find . -type f -name '*.dump.age' | sed 's|^\./||')
+    else
+      [[ -f "$d" ]] || { echo "stub rclone: object not found" >&2; exit 3; }
+      wc -c <"$d" | tr -d ' '
+    fi
+    ;;
+  moveto)
+    # S3 has no rename: rclone copies server-side, then deletes the source.
+    src="$(local_path "${args[0]}")"; dst="$(local_path "${args[1]}")"
+    if locked; then
+      [[ -e "$dst" ]] && refuse_locked
+      cp "$src" "$dst"
+      refuse_locked
+    fi
+    mv -f "$src" "$dst"
+    ;;
+  deletefile) locked && refuse_locked; rm -f "$(local_path "${args[0]}")" ;;
+  copyto)
+    if [[ "${args[1]}" == r2:* ]]; then
+      dst="$(local_path "${args[1]}")"
+      locked && [[ -e "$dst" ]] && refuse_locked
+      cp "$(local_path "${args[0]}")" "$dst"
+    else
+      cp "$(local_path "${args[0]}")" "${args[1]}"
+    fi
+    ;;
+  *) echo "stub rclone: unexpected command $cmd" >&2; exit 98 ;;
+esac

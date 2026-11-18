@@ -3,6 +3,11 @@ import { listRegions } from "@lib/data/regions"
 import { getSiteOrigin, listCountryCodes } from "@lib/util/site"
 import type { MetadataRoute } from "next"
 
+// Rendered per request, not at build time: the build must not need the backend (the Cloudflare
+// deploy builds before or independently of it), and a sitemap baked at build would go stale as
+// products change.
+export const dynamic = "force-dynamic"
+
 const STATIC_PATHS = [
   "",
   "/store",

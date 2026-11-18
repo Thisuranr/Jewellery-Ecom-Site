@@ -1,0 +1,8 @@
+# Installed by infra/vps/bootstrap.sh as /etc/sudoers.d/deploy (mode 0440).
+# The CI deploy user may run exactly two commands as root. It reaches them only
+# through the SSH forced command /opt/azira/bin/deploy-gate.sh, which accepts
+#   deploy <40 hex sha> [--now]      -> deploy.sh (pull, migrate, health check, rollback)
+#   env  (settings on stdin)         -> apply-env.sh (validates an allow-list, writes the files)
+# No arguments are listed, so any are permitted by sudo itself (sudoers semantics);
+# the scripts own the argument checks.
+deploy ALL=(root) NOPASSWD: /opt/azira/bin/deploy.sh, /opt/azira/bin/apply-env.sh

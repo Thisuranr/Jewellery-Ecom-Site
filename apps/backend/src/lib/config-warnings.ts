@@ -22,8 +22,9 @@ function isPlaceholderSecret(value: string | undefined): boolean {
 /**
  * Settings that are legal but wrong to ship. Warnings only, never a crash.
  * - CUSTOM_ORDER_EMAIL left on the example.com placeholder: custom order enquiries go nowhere (any environment).
- * - STOREFRONT_URL pointing at localhost, and Stripe keys that are placeholders: production only
- *   (both are normal while developing).
+ * - STOREFRONT_URL pointing at localhost, and Stripe keys that are placeholders: warned about here only
+ *   when NODE_ENV is production; in production the boot check in production-env.ts stops the server
+ *   before this runs, so these two are a second line of defence.
  */
 export function configWarnings(env: NodeJS.ProcessEnv = process.env): string[] {
   const out: string[] = []

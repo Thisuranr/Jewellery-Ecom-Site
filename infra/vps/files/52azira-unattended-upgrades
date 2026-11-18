@@ -1,0 +1,17 @@
+// Installed by infra/vps/bootstrap.sh as /etc/apt/apt.conf.d/52azira-unattended-upgrades.
+// Read after Ubuntu's 50unattended-upgrades, so it replaces the origin list.
+// Security updates only: no "-updates" pocket, and no Docker repository (Docker is
+// upgraded by hand once a month; docs/hosting.md).
+#clear Unattended-Upgrade::Allowed-Origins;
+Unattended-Upgrade::Allowed-Origins {
+        "${distro_id}:${distro_codename}-security";
+        "${distro_id}ESMApps:${distro_codename}-apps-security";
+        "${distro_id}ESM:${distro_codename}-infra-security";
+};
+Unattended-Upgrade::Remove-Unused-Kernel-Packages "true";
+Unattended-Upgrade::Remove-Unused-Dependencies "true";
+// Reboot only when an update needs it, at 04:00 server time (bootstrap sets the
+// server clock to Australia/Sydney), and never while someone is logged in.
+Unattended-Upgrade::Automatic-Reboot "true";
+Unattended-Upgrade::Automatic-Reboot-WithUsers "false";
+Unattended-Upgrade::Automatic-Reboot-Time "04:00";

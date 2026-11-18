@@ -1,0 +1,24 @@
+# Installed by infra/vps/bootstrap.sh as /etc/systemd/system/azira-backup.service.
+# The only copy (the infra/backup/systemd duplicate was removed in the review batch).
+# Runs /opt/azira/bin/backup.sh (plan task I7, infra/backup/backup.sh): pg_dump | age | rclone.
+# The script pings BACKUP_HEARTBEAT_URL itself and exits non-zero on failure.
+# Manual run: systemctl start azira-backup.service; logs: journalctl -u azira-backup
+[Unit]
+Description=Encrypted Postgres backup to R2 (pg_dump | age | rclone)
+Wants=network-online.target
+After=docker.service network-online.target
+Requires=docker.service
+
+[Service]
+Type=oneshot
+User=root
+# Optional file (leading dash): mode 0600 root, holds the rclone/R2 and heartbeat settings.
+# Without it backup.sh fails, and the missing heartbeat raises the alert.
+EnvironmentFile=-/opt/azira/backup.env
+ExecStart=/opt/azira/bin/backup.sh
+TimeoutStartSec=1h
+Nice=10
+IOSchedulingClass=idle
+# backup.sh bind-mounts only /opt/azira/certs into its container, never /tmp.
+PrivateTmp=yes
+NoNewPrivileges=yes

@@ -1,0 +1,3 @@
+# These files run on Linux (the droplet). A Windows checkout with core.autocrlf=true
+# would turn them into CRLF and "bash\r" would fail. Keep LF in the working tree too.
+* text eol=lf

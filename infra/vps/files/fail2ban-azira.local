@@ -1,0 +1,14 @@
+# Installed by infra/vps/bootstrap.sh as /etc/fail2ban/jail.d/azira.local.
+# Ubuntu 24.04 logs sshd to the journal only (no /var/log/auth.log), so the
+# jail must read the systemd journal.
+[DEFAULT]
+backend = systemd
+bantime = 1h
+findtime = 10m
+maxretry = 5
+bantime.increment = true
+bantime.maxtime = 1w
+
+[sshd]
+enabled = true
+port = ssh

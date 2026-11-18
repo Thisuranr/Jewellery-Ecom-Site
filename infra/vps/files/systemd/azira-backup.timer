@@ -1,0 +1,17 @@
+# Installed by infra/vps/bootstrap.sh as /etc/systemd/system/azira-backup.timer.
+# NOT enabled by the bootstrap: the owner enables it (docs/hosting.md, Backups) after the age key pair exists
+# (`systemctl enable --now azira-backup.timer`; check: systemctl list-timers azira-backup).
+# Every 6 h at 00:00, 06:00, 12:00 and 18:00 UTC (04:00, 10:00, 16:00 and 22:00 in Sydney
+# in winter, an hour later in daylight saving), each delayed by up to 10 min. The droplet's
+# clock is Australia/Sydney, so UTC is explicit.
+[Unit]
+Description=Run the encrypted Postgres backup every 6 hours
+
+[Timer]
+OnCalendar=*-*-* 00/6:00:00 UTC
+RandomizedDelaySec=10min
+AccuracySec=1min
+Persistent=true
+
+[Install]
+WantedBy=timers.target

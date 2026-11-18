@@ -1,0 +1,18 @@
+#!/usr/bin/env bash
+# Test stub: records its arguments; "run ... pg_dump" writes a fake custom-format dump.
+set -euo pipefail
+printf '%s\n' "$*" >>"$STUB_LOG/docker.args"
+if [[ -n "${PGPASSWORD:-}" && "$*" == *"$PGPASSWORD"* ]]; then
+  echo "stub docker: the password is in argv" >&2
+  exit 99
+fi
+case "$*" in
+  *pg_dump*)
+    case "${STUB_DUMP:-ok}" in
+      ok) { printf 'PGDMP'; head -c "${STUB_DUMP_BYTES:-200000}" /dev/urandom; } | tee "$STUB_LOG/plain.dump" ;;
+      fail) printf 'PGDMP then the connection drops'; echo "pg_dump: error: connection lost" >&2; exit 1 ;;
+      small) printf 'PGDMP' ;;
+    esac
+    ;;
+  *) echo "stub docker: unexpected call: $*" >&2; exit 98 ;;
+esac

@@ -1,0 +1,2 @@
+# Scripts and configs here run on Linux; keep LF line endings in every checkout.
+* text eol=lf

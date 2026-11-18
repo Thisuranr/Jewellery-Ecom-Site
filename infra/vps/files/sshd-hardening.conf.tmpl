@@ -1,0 +1,18 @@
+# Installed by infra/vps/bootstrap.sh as /etc/ssh/sshd_config.d/00-azira-hardening.conf.
+# The 00- prefix makes sshd read it before cloud-init's 50-/60- drop-ins, and sshd
+# keeps the FIRST value it sees for each option, so these settings win.
+# @ADMIN_USER@ is replaced by the owner's login name.
+PermitRootLogin no
+PasswordAuthentication no
+KbdInteractiveAuthentication no
+PubkeyAuthentication yes
+AuthenticationMethods publickey
+PermitEmptyPasswords no
+AllowUsers @ADMIN_USER@ deploy
+MaxAuthTries 3
+LoginGraceTime 30
+MaxStartups 10:30:60
+X11Forwarding no
+AllowAgentForwarding no
+ClientAliveInterval 300
+ClientAliveCountMax 2

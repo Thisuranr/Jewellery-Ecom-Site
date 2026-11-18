@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+# Test stub for `date`: Australia/Sydney time comes from $FAKE_HOUR (default 03)
+# and $FAKE_OFFSET (default +1000); anything else goes to the real date.
+if [[ ${TZ-} == Australia/Sydney ]]; then
+  case ${1-} in
+    +%z) echo "${FAKE_OFFSET:-+1000}"; exit 0 ;;
+    +%H) echo "${FAKE_HOUR:-03}"; exit 0 ;;
+  esac
+fi
+exec /usr/bin/date "$@"

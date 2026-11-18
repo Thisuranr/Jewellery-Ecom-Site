@@ -1,0 +1,340 @@
+name: Backend deploy
+
+# Builds the backend image and deploys it to the droplet. Runs on a push to main
+# that changes the backend or the image recipe, and by hand (Actions > Backend
+# deploy > Run workflow). It does NOT run for other branches.
+#
+# How it reaches the droplet: SSH as the restricted `deploy` user. Its
+# authorized_keys line forces ONE command (/opt/azira/bin/deploy-gate.sh), which
+# accepts only three requests (infra/deploy/deploy-gate.sh):
+#   env                      settings on stdin -> apply-env.sh checks them against an
+#                            allow-list and writes /opt/azira/.env (0600 root), redis.env,
+#                            tunnel.env, the Supabase CA and compose/.env
+#   deploy <40-hex sha>      -> deploy.sh: pull, migrate, health check, roll back on failure
+#   deploy <sha> --now       same (there is no deploy window unless one is configured)
+# So this workflow's key can set the production settings and deploy an image that
+# is in the registry, and nothing else: no shell, no Docker, no port forwarding.
+# The host key is checked against DEPLOY_KNOWN_HOSTS (StrictHostKeyChecking=yes).
+#
+# Production settings come from GitHub repository secrets and variables (the names
+# are listed in docs/hosting.md). The droplet pulls the private image with this
+# run's short-lived GITHUB_TOKEN (docker login in apply-env.sh), so no long-lived
+# registry token is stored anywhere.
+#
+# Inputs
+# - sha: leave empty to deploy the commit this run was started on (a push to main
+#   builds it first). Enter a full 40-character sha to deploy an older image (a
+#   rollback): it must be a commit on main and its image must exist in GHCR.
+#
+# Secrets and variables reach the scripts only through env:, never through the
+# script text. Third-party actions are pinned to full commit SHAs.
+on:
+  push:
+    branches: [main]
+    paths:
+      - "apps/backend/**"
+      - "infra/docker/**"
+      - "pnpm-lock.yaml"
+      - "pnpm-workspace.yaml"
+      - "package.json"
+      - ".npmrc"
+      - ".dockerignore"
+      - ".github/workflows/backend-deploy.yml"
+      - ".github/workflows/backend-image.yml"
+  workflow_dispatch:
+    inputs:
+      sha:
+        description: Full 40-character commit sha to deploy (a rollback). Leave empty to build and deploy the commit this run starts on.
+        required: false
+        default: ""
+        type: string
+
+# One deploy at a time, and a deploy is never cancelled halfway. (deploy.sh also
+# takes a lock on the droplet.)
+concurrency:
+  group: backend-deploy
+  cancel-in-progress: false
+
+permissions: {}
+
+jobs:
+  image:
+    name: Build the image
+    # A rollback to an older sha needs no build.
+    if: ${{ inputs.sha == '' }}
+    permissions:
+      contents: read
+      packages: write
+    uses: ./.github/workflows/backend-image.yml
+
+  deploy:
+    name: Deploy to the droplet
+    needs: image
+    # Runs after a successful build, or after a skipped one (rollback), never after a failed one.
+    if: ${{ !cancelled() && (needs.image.result == 'success' || needs.image.result == 'skipped') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    permissions:
+      contents: read
+      packages: read
+    env:
+      # --- secrets (GitHub repository secrets) ---
+      DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+      DEPLOY_KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
+      DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      SUPABASE_CA_CERT: ${{ secrets.SUPABASE_CA_CERT }}
+      REDIS_PASSWORD: ${{ secrets.REDIS_PASSWORD }}
+      JWT_SECRET: ${{ secrets.JWT_SECRET }}
+      COOKIE_SECRET: ${{ secrets.COOKIE_SECRET }}
+      STRIPE_API_KEY: ${{ secrets.STRIPE_API_KEY }}
+      STRIPE_WEBHOOK_SECRET: ${{ secrets.STRIPE_WEBHOOK_SECRET }}
+      R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+      R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+      RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+      TUNNEL_TOKEN: ${{ secrets.TUNNEL_TOKEN }}
+      # --- variables (not secret; the defaults are the real Azira values) ---
+      STORE_NAME: ${{ vars.STORE_NAME || 'Azira' }}
+      STORE_NOTIFY_EMAIL: ${{ vars.STORE_NOTIFY_EMAIL }}
+      CUSTOM_ORDER_EMAIL: ${{ vars.CUSTOM_ORDER_EMAIL }}
+      STORE_ABN: ${{ vars.STORE_ABN }}
+      EMAIL_FROM: ${{ vars.EMAIL_FROM || 'Azira <orders@azira.com.au>' }}
+      EMAIL_REPLY_TO: ${{ vars.EMAIL_REPLY_TO }}
+      STORE_CORS: ${{ vars.STORE_CORS || 'https://azira.com.au,https://www.azira.com.au' }}
+      ADMIN_CORS: ${{ vars.ADMIN_CORS || 'https://admin.azira.com.au' }}
+      AUTH_CORS: ${{ vars.AUTH_CORS || 'https://admin.azira.com.au,https://azira.com.au,https://www.azira.com.au' }}
+      STOREFRONT_URL: ${{ vars.STOREFRONT_URL || 'https://azira.com.au/au' }}
+      MEDUSA_BACKEND_URL: ${{ vars.ADMIN_URL || 'https://admin.azira.com.au' }}
+      FILE_URL: ${{ vars.FILE_URL || 'https://img.azira.com.au' }}
+      R2_ENDPOINT: ${{ vars.R2_ENDPOINT || 'https://7b7865326875e0dea1285c31309d77a4.r2.cloudflarestorage.com' }}
+      R2_BUCKET: ${{ vars.R2_BUCKET || 'azira-images' }}
+    steps:
+      - name: Check the secrets and variables
+        id: cfg
+        run: |
+          set -euo pipefail
+          missing=""
+          for name in DEPLOY_SSH_KEY DEPLOY_KNOWN_HOSTS DEPLOY_HOST DATABASE_URL SUPABASE_CA_CERT \
+            REDIS_PASSWORD JWT_SECRET COOKIE_SECRET STRIPE_API_KEY STRIPE_WEBHOOK_SECRET \
+            R2_ACCESS_KEY_ID R2_SECRET_ACCESS_KEY RESEND_API_KEY TUNNEL_TOKEN \
+            STORE_NOTIFY_EMAIL CUSTOM_ORDER_EMAIL; do
+            [ -n "${!name}" ] || missing="$missing $name"
+          done
+          if [ -n "$missing" ]; then
+            echo "::error title=Backend deploy: NOTHING WAS DEPLOYED::These secrets or variables are not set:${missing}. docs/hosting.md lists every one and where to find it."
+            {
+              echo "### Backend deploy: nothing was deployed"
+              echo
+              echo "Not set:${missing}"
+            } >> "$GITHUB_STEP_SUMMARY"
+            exit 1
+          fi
+          # The host goes into "deploy@<host>" on the ssh command line.
+          if ! [[ $DEPLOY_HOST =~ ^[A-Za-z0-9._:-]+$ ]]; then
+            echo "::error title=DEPLOY_HOST is not valid::DEPLOY_HOST may only hold letters, digits and . _ : - (an IP address or a host name)."
+            exit 1
+          fi
+          # Each setting travels as one line: a newline would corrupt the request.
+          # (SUPABASE_CA_CERT is the one multi-line value; it is base64-encoded below.)
+          for name in DATABASE_URL REDIS_PASSWORD JWT_SECRET COOKIE_SECRET STRIPE_API_KEY STRIPE_WEBHOOK_SECRET \
+            R2_ACCESS_KEY_ID R2_SECRET_ACCESS_KEY RESEND_API_KEY TUNNEL_TOKEN STORE_NAME STORE_NOTIFY_EMAIL \
+            CUSTOM_ORDER_EMAIL STORE_ABN EMAIL_FROM EMAIL_REPLY_TO STORE_CORS ADMIN_CORS AUTH_CORS STOREFRONT_URL \
+            MEDUSA_BACKEND_URL FILE_URL R2_ENDPOINT R2_BUCKET; do
+            if [[ ${!name} == *$'\n'* || ${!name} == *$'\r'* ]]; then
+              echo "::error title=${name} has a line break::The value of ${name} must be a single line (no line break; check for a trailing newline from the paste)."
+              exit 1
+            fi
+          done
+          echo "ready=true" >> "$GITHUB_OUTPUT"
+
+      - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Pick the sha and check that its image exists
+        id: pick
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SHA_INPUT: ${{ inputs.sha }}
+          RUN_SHA: ${{ github.sha }}
+          OWNER: ${{ github.repository_owner }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          owner="$(printf '%s' "$OWNER" | tr '[:upper:]' '[:lower:]')"
+          image="ghcr.io/${owner}/azira-backend"
+
+          # Tolerate spaces and capitals from a paste.
+          sha="${SHA_INPUT//[[:space:]]/}"
+          sha="${sha,,}"
+          if [ -z "$sha" ]; then
+            sha="$RUN_SHA"
+          else
+            if ! [[ $sha =~ ^[0-9a-f]{40}$ ]]; then
+              echo "::error title=Bad sha::The sha input must be the full 40-character commit sha, or empty."
+              exit 1
+            fi
+            # Only commits on main are deployed. compare/main...<sha> says
+            # "behind" when main contains the sha, "identical" when it is main's
+            # head; "ahead" or "diverged" means unmerged commits.
+            on_main="$(gh api "repos/${REPO}/compare/main...${sha}" --jq .status 2>/dev/null || true)"
+            case "$on_main" in
+              identical|behind) ;;
+              *)
+                echo "::error title=Not on main::${sha} is not a commit on main, so it is not deployed. Merge it into main first."
+                exit 1
+                ;;
+            esac
+          fi
+          if ! [[ $sha =~ ^[0-9a-f]{40}$ ]]; then
+            echo "::error title=Bad sha::The resolved sha is not 40 lowercase hex characters."
+            exit 1
+          fi
+          if ! docker buildx imagetools inspect "${image}:${sha}" > /dev/null 2>&1; then
+            echo "::error title=No image for this sha::${image}:${sha} was not found. Run this workflow on that commit first (or check that this repository may read the package)."
+            exit 1
+          fi
+          echo "sha=$sha" >> "$GITHUB_OUTPUT"
+          echo "image=$image" >> "$GITHUB_OUTPUT"
+          {
+            echo "### Deploy request"
+            echo
+            echo "- Commit: [\`${sha}\`](https://github.com/${REPO}/commit/${sha})"
+            echo "- Image: \`${image}:${sha}\` (found in the registry)"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Send the settings, then deploy
+        env:
+          SHA: ${{ steps.pick.outputs.sha }}
+          IMAGE: ${{ steps.pick.outputs.image }}
+          GHCR_USER: ${{ github.repository_owner }}
+          GHCR_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          umask 077
+
+          key_file="$RUNNER_TEMP/deploy_key"
+          hosts_file="$RUNNER_TEMP/deploy_known_hosts"
+          payload="$RUNNER_TEMP/azira.env"
+          trap 'rm -f "$key_file" "$hosts_file" "$payload"' EXIT
+          printf '%s\n' "$DEPLOY_SSH_KEY" > "$key_file"
+          printf '%s\n' "$DEPLOY_KNOWN_HOSTS" > "$hosts_file"
+
+          # Catches a pasted public key or the wrong secret without printing it.
+          if ! grep -q 'PRIVATE KEY' "$key_file"; then
+            echo "::error title=DEPLOY_SSH_KEY is not a private key::The secret does not look like an SSH private key."
+            exit 1
+          fi
+
+          # The settings, one KEY=value per line. apply-env.sh on the droplet
+          # re-checks every key against its allow-list and every value's
+          # characters, so a mistake here is refused, not applied.
+          ca_b64="$(printf '%s\n' "$SUPABASE_CA_CERT" | base64 -w0)"
+          {
+            printf '%s=%s\n' DATABASE_URL "$DATABASE_URL"
+            printf '%s=%s\n' DB_SSL true
+            printf '%s=%s\n' DB_CA_PATH /run/secrets/supabase-ca.crt
+            printf '%s=%s\n' DB_CA_CERT_B64 "$ca_b64"
+            printf '%s=%s\n' REDIS_PASSWORD "$REDIS_PASSWORD"
+            printf '%s=%s\n' REDIS_URL "redis://:${REDIS_PASSWORD}@redis:6379"
+            printf '%s=%s\n' JWT_SECRET "$JWT_SECRET"
+            printf '%s=%s\n' COOKIE_SECRET "$COOKIE_SECRET"
+            printf '%s=%s\n' STORE_CORS "$STORE_CORS"
+            printf '%s=%s\n' ADMIN_CORS "$ADMIN_CORS"
+            printf '%s=%s\n' AUTH_CORS "$AUTH_CORS"
+            printf '%s=%s\n' MEDUSA_BACKEND_URL "$MEDUSA_BACKEND_URL"
+            printf '%s=%s\n' STOREFRONT_URL "$STOREFRONT_URL"
+            printf '%s=%s\n' STORE_NAME "$STORE_NAME"
+            printf '%s=%s\n' STORE_NOTIFY_EMAIL "$STORE_NOTIFY_EMAIL"
+            printf '%s=%s\n' CUSTOM_ORDER_EMAIL "$CUSTOM_ORDER_EMAIL"
+            printf '%s=%s\n' STRIPE_API_KEY "$STRIPE_API_KEY"
+            printf '%s=%s\n' STRIPE_WEBHOOK_SECRET "$STRIPE_WEBHOOK_SECRET"
+            printf '%s=%s\n' FILE_PROVIDER s3
+            printf '%s=%s\n' FILE_URL "$FILE_URL"
+            printf '%s=%s\n' R2_ACCESS_KEY_ID "$R2_ACCESS_KEY_ID"
+            printf '%s=%s\n' R2_SECRET_ACCESS_KEY "$R2_SECRET_ACCESS_KEY"
+            printf '%s=%s\n' R2_ENDPOINT "$R2_ENDPOINT"
+            printf '%s=%s\n' R2_BUCKET "$R2_BUCKET"
+            printf '%s=%s\n' EMAIL_TRANSPORT resend
+            printf '%s=%s\n' RESEND_API_KEY "$RESEND_API_KEY"
+            printf '%s=%s\n' EMAIL_FROM "$EMAIL_FROM"
+            [ -z "$EMAIL_REPLY_TO" ] || printf '%s=%s\n' EMAIL_REPLY_TO "$EMAIL_REPLY_TO"
+            [ -z "$STORE_ABN" ] || printf '%s=%s\n' STORE_ABN "$STORE_ABN"
+            printf '%s=%s\n' WORKER_MODE shared
+            printf '%s=%s\n' MEDUSA_DISABLE_TELEMETRY true
+            printf '%s=%s\n' TUNNEL_TOKEN "$TUNNEL_TOKEN"
+            printf '%s=%s\n' BACKEND_IMAGE "$IMAGE"
+            printf '%s=%s\n' GHCR_USER "$GHCR_USER"
+            printf '%s=%s\n' GHCR_TOKEN "$GHCR_TOKEN"
+          } > "$payload"
+
+          ssh_run() { # ssh_run <request>   (stdin is passed through)
+            ssh -T \
+              -i "$key_file" \
+              -o IdentitiesOnly=yes \
+              -o BatchMode=yes \
+              -o PasswordAuthentication=no \
+              -o UserKnownHostsFile="$hosts_file" \
+              -o GlobalKnownHostsFile=/dev/null \
+              -o StrictHostKeyChecking=yes \
+              -o ConnectTimeout=20 \
+              -o ServerAliveInterval=15 \
+              -o ServerAliveCountMax=8 \
+              "deploy@${DEPLOY_HOST}" "$1"
+          }
+
+          # 1. The settings. apply-env.sh prints key counts and statuses, never values.
+          set +e
+          ssh_run "env" < "$payload"
+          rc=$?
+          set -e
+          rm -f "$payload"
+          case "$rc" in
+            0) ;;
+            255)
+              echo "::error title=SSH failed::ssh could not connect or authenticate (exit 255): check DEPLOY_HOST, that DEPLOY_KNOWN_HOSTS holds the droplet's current host key, and that the key is in the deploy user's authorized_keys."
+              exit "$rc"
+              ;;
+            *)
+              echo "::error title=The droplet refused the settings::apply-env.sh exited ${rc}. The message above names the setting. Nothing was deployed."
+              exit "$rc"
+              ;;
+          esac
+
+          # 2. The deploy. The request is exactly what deploy-gate.sh accepts: the
+          # words are fixed here and only the checked sha is added. deploy.sh prints
+          # step names, shas and statuses only; Docker's output stays in
+          # /opt/azira/logs on the droplet.
+          if ! [[ $SHA =~ ^[0-9a-f]{40}$ ]]; then
+            echo "::error title=Bad sha::The resolved sha is not 40 lowercase hex characters."
+            exit 1
+          fi
+          set +e
+          ssh_run "deploy $SHA" < /dev/null
+          rc=$?
+          set -e
+          case "$rc" in
+            0)
+              echo "::notice title=Deployed::${SHA} is deployed and healthy."
+              {
+                echo "### Deployed"
+                echo
+                echo "\`${SHA}\` is running and passed its health check."
+              } >> "$GITHUB_STEP_SUMMARY"
+              ;;
+            1)
+              echo "::error title=Deploy did not complete::Exit 1 from deploy.sh: it was refused, the migrations failed, or the new version was unhealthy and the previous one was restored. Read the lines above, and /opt/azira/deploy.log on the droplet."
+              ;;
+            2)
+              echo "::error title=ROLLBACK FAILED::deploy.sh exit 2: the new version was unhealthy and the previous one did not come back. Follow 'Rolling back' in docs/hosting.md now."
+              ;;
+            255)
+              echo "::error title=SSH failed::ssh could not connect or authenticate (exit 255)."
+              ;;
+            *)
+              echo "::error title=Unexpected exit code::ssh returned ${rc}."
+              ;;
+          esac
+          exit "$rc"

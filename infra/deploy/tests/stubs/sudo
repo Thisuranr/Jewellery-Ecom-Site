@@ -1,0 +1,3 @@
+#!/usr/bin/env bash
+# Test stub for `sudo` (deploy-gate.sh tests): records its arguments, one per line.
+printf '%s\n' "$@" >"$STUB_SUDO_ARGS"

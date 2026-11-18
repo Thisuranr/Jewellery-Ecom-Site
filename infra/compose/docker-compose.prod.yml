@@ -1,0 +1,176 @@
+# Production stack on the droplet (Azira, DigitalOcean SYD1).
+#
+# Installed as /opt/azira/compose/docker-compose.prod.yml, next to
+# /opt/azira/compose/.env (non-secret: BACKEND_IMAGE). Docker Compose reads that
+# .env only to fill ${...} below. Every file in /opt/azira is written by
+# infra/deploy/apply-env.sh from GitHub secrets (docs/hosting.md): the backend's
+# settings in /opt/azira/.env, REDIS_PASSWORD in redis.env, TUNNEL_TOKEN in
+# tunnel.env. Each container only gets the file it needs.
+#
+# Only infra/deploy/deploy.sh changes the running backend. It sets IMAGE_TAG to
+# a commit sha and runs, in order:
+#   docker compose pull medusa
+#   docker compose up -d --wait --no-deps --no-recreate redis cloudflared
+#   docker compose --profile migrate run --rm -T migrate
+#   docker compose up -d --no-deps medusa
+# (the second line only starts redis and cloudflared if they are not running,
+# for the first deploy).
+#
+# No service publishes a port. cloudflared reaches medusa over the `internal`
+# network; the Cloud Firewall allows inbound SSH only. One medusa process runs
+# the store API, the admin dashboard, jobs and subscribers (WORKER_MODE=shared),
+# so there is no separate worker service.
+#
+# Image pins: each tag is exact and the digest is the multi-arch index digest
+# (copied from the earlier store, read from Docker Hub on 2026-10-29). Before
+# go-live re-check them with `docker buildx imagetools inspect <image>:<tag>`
+# and update them deliberately.
+
+name: azira
+
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "5"
+
+# Shared by the app and the one-off migrate job: same image, same environment,
+# same Supabase CA.
+x-backend: &backend
+  image: ${BACKEND_IMAGE:?set BACKEND_IMAGE in /opt/azira/compose/.env}:${IMAGE_TAG:?IMAGE_TAG is set by deploy.sh}
+  env_file:
+    - /opt/azira/.env
+  environment:
+    NODE_OPTIONS: --max-old-space-size=1024
+    # Medusa's scheduler has no timezone option and reads the process clock, so
+    # the process runs on UTC (the droplet itself is on Sydney time). The image
+    # sets it too; this keeps it true if the image is ever swapped.
+    TZ: UTC
+  mem_limit: 1400m
+  init: true
+  security_opt:
+    - no-new-privileges:true
+  cap_drop:
+    - ALL
+  volumes:
+    # Supabase's CA certificate (public, mode 0644), written by apply-env.sh from
+    # the DB_CA_CERT_B64 setting. /opt/azira/.env sets DB_SSL=true and
+    # DB_CA_PATH=/run/secrets/supabase-ca.crt. Long syntax so a missing file
+    # fails instead of Docker creating an empty directory.
+    - type: bind
+      source: /opt/azira/certs/supabase-ca.crt
+      target: /run/secrets/supabase-ca.crt
+      read_only: true
+      bind:
+        create_host_path: false
+  networks:
+    - internal
+    - egress
+  logging: *logging
+
+services:
+  medusa:
+    <<: *backend
+    restart: unless-stopped
+    # Medusa shuts down gracefully on SIGTERM; give in-flight requests time.
+    stop_grace_period: 30s
+    depends_on:
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:9000/health',{signal:AbortSignal.timeout(4000)}).then(r=>process.exit(r.ok?0:1),()=>process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 90s
+      start_interval: 3s
+    # No `ports:`. Reached only by cloudflared on `internal`.
+
+  migrate:
+    <<: *backend
+    # The medusa binary by its direct path (the image's CMD uses the same one).
+    command: ["/app/node_modules/.bin/medusa", "db:migrate"]
+    profiles: ["migrate"]
+    restart: "no"
+    # Medusa's Redis modules load during db:migrate too.
+    depends_on:
+      redis:
+        condition: service_healthy
+    healthcheck:
+      disable: true
+
+  redis:
+    # Redis 7.4.11. Licence for 7.4: RSALv2/SSPLv1, which allows this use (our
+    # own app's cache and queues).
+    image: redis:7.4.11-bookworm@sha256:44960b3100c48159a66d28c18b0588c193492e25f7551d60e51dd464fc3eca5b
+    # The password comes from redis.env (REDIS_PASSWORD, written by apply-env.sh)
+    # and is expanded by the container's own shell, so it is never in this file.
+    # appendonly + everysec for durability; a hard 256 MB cap that refuses
+    # writes instead of evicting (Medusa's queues, workflow state and locks must
+    # never be evicted silently).
+    command:
+      - sh
+      - -c
+      - exec redis-server --bind '* -::*' --port 6379 --protected-mode yes --dir /data --appendonly yes --appendfsync everysec --maxmemory 256mb --maxmemory-policy noeviction --requirepass "$$REDIS_PASSWORD"
+    env_file:
+      - /opt/azira/redis.env
+    # uid:gid 999:999 is the image's `redis` user (docker-library/redis
+    # Dockerfile). Running as it directly skips the entrypoint's root chown and
+    # gosu step, so every capability can be dropped. The named volume is
+    # created owned by that user.
+    user: "999:999"
+    restart: unless-stopped
+    mem_limit: 300m
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      # No password here: an unauthenticated PING answers NOAUTH, which still
+      # proves the server is up and serving.
+      test: ["CMD-SHELL", "redis-cli -h 127.0.0.1 ping 2>&1 | grep -qE 'PONG|NOAUTH'"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
+    networks:
+      - internal
+    logging: *logging
+
+  cloudflared:
+    # cloudflared 2026.10.0. The image is distroless and runs as uid:gid
+    # 65532:65532 ("nonroot"), ENTRYPOINT ["cloudflared", "--no-autoupdate"].
+    # A remotely-managed tunnel: the token (tunnel.env, TUNNEL_TOKEN) identifies
+    # it, and the public hostnames (api. and admin. -> http://medusa:9000) are
+    # set in the Cloudflare dashboard (infra/cloudflare/tunnel-config.yml lists
+    # them). Nothing is mounted: no credentials file lives on the droplet.
+    image: cloudflare/cloudflared:2026.10.0@sha256:9b49eed8f62806d5d45ddf59ecefb5710429598ea6d3fcccd2af938f621b2b07
+    command: ["tunnel", "--no-autoupdate", "run"]
+    env_file:
+      - /opt/azira/tunnel.env
+    restart: unless-stopped
+    mem_limit: 256m
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    # No depends_on: the tunnel can run while medusa is being replaced (it
+    # answers 502 until the origin is back), and deploy.sh starts it with
+    # --no-deps so nothing else is started with it.
+    networks:
+      - internal
+      - egress
+    logging: *logging
+
+networks:
+  # No route out. Redis lives only here.
+  internal:
+    internal: true
+  # Outbound only (no published ports): Supabase's session pooler, R2, Stripe,
+  # Resend, the Cloudflare edge.
+  egress: {}
+
+volumes:
+  redisdata: {}
