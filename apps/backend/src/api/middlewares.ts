@@ -15,6 +15,7 @@ import {
   StoreCreateEnquirySchema,
 } from '../modules/custom-enquiry/lib/rules'
 import { stripPaymentSessionData } from '../lib/sanitize-payment-session-body'
+import { blockWhenCheckoutPaused } from '../lib/checkout-paused'
 import {
   forceTaxInclusiveOnCreate,
   forceTaxInclusiveOnUpdate,
@@ -24,11 +25,19 @@ import {
 // the route narrows it to published products in the key's sales channels.
 export default defineMiddlewares({
   routes: [
+    // Preview mode (CHECKOUT_PAUSED=true): no payment can be started and no cart
+    // can become an order. Refused with a 403 before anything else runs. When the
+    // flag is not "true" the middleware only calls next().
+    {
+      method: ['POST'],
+      matcher: '/store/carts/:id/complete',
+      middlewares: [blockWhenCheckoutPaused],
+    },
     // Never let a shopper pass PaymentIntent overrides (capture_method, confirm, ...) to Stripe.
     {
       method: ['POST'],
       matcher: '/store/payment-collections/:id/payment-sessions',
-      middlewares: [stripPaymentSessionData],
+      middlewares: [blockWhenCheckoutPaused, stripPaymentSessionData],
     },
     // All prices include GST, so promotions must be tax-inclusive ("$10 off"
     // means $10 off the GST-inclusive price, not $11).

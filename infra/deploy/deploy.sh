@@ -12,6 +12,19 @@
 # command), or by the owner with sudo. The `deploy` user is not in the docker
 # group, so this script is its only way to touch Docker.
 #
+# Only the pinned image runs. /opt/azira/image-pin.env (root:root, written by
+# infra/vps/bootstrap.sh) names the one allowed repository, BACKEND_IMAGE_REPO;
+# the image the compose file resolves to must be exactly that repository, or
+# deploy.sh refuses before pulling anything. Without the pin file it refuses too.
+#
+# redis and cloudflared are left running as they are, unless the settings they
+# read changed: a hash of redis.env and tunnel.env is kept in
+# /opt/azira/service-env.sha256 after each successful start, and a service whose
+# file no longer matches (or has no recorded hash) is recreated, so a rotated
+# REDIS_PASSWORD or TUNNEL_TOKEN takes effect and the new app container can
+# still reach redis. (While redis is being replaced the old app container loses
+# its redis connection; it is swapped after the migration, minutes later.)
+#
 # Exit codes: 0 deployed; 1 refused or failed (the previous app still runs, or
 # none did); 2 the rollback failed too and the app is down.
 #
@@ -40,6 +53,8 @@ readonly COMPOSE_FILE="$COMPOSE_DIR/docker-compose.prod.yml"
 readonly TAG_FILE="$SHOP_DIR/current_tag"
 readonly LOCK_FILE="$SHOP_DIR/deploy.lock"
 readonly DEPLOY_LOG="$SHOP_DIR/deploy.log"
+readonly PIN_FILE="$SHOP_DIR/image-pin.env"
+readonly ENV_HASH_FILE="$SHOP_DIR/service-env.sha256"
 readonly RUN_LOG_DIR="$SHOP_DIR/logs"
 readonly SHA_RE='^[0-9a-f]{40}$'
 readonly KEEP_TAGS=3
@@ -90,6 +105,22 @@ dc() { # dc <image tag> <compose args...>
 backend_ref() { # backend_ref <tag>
   dc "$1" config --images 2>>"$RUN_LOG" |
     awk -v suffix=":$1" '!found && substr($0, length($0) - length(suffix) + 1) == suffix { print; found = 1 }'
+}
+
+# The pinned image repository from the root-owned pin file (nothing if absent).
+pinned_repo() {
+  local line
+  line=$(grep -m1 -E '^BACKEND_IMAGE_REPO=' "$PIN_FILE" 2>/dev/null || true)
+  printf '%s' "${line#*=}"
+}
+
+# hash of a settings file, or nothing when it is missing
+env_hash() { # env_hash <file name under SHOP_DIR>
+  sha256sum "$SHOP_DIR/$1" 2>/dev/null | awk '{ print $1 }'
+}
+
+recorded_hash() { # recorded_hash <service>
+  awk -v n="$1" '$1 == n { print $2 }' "$ENV_HASH_FILE" 2>/dev/null || true
 }
 
 # Polls the medusa container until it runs <tag> and Docker reports it
@@ -212,19 +243,49 @@ main() {
   : >"$RUN_LOG"
   record "start sha=$sha prev=${prev:-none} now=$now log=$RUN_LOG"
 
-  # 5. Pull, and check the image was built from this commit.
-  STEP="pull"
-  quiet dc "$sha" pull medusa || finish 1 "failed sha=$sha: pull failed; nothing changed"
+  # 5. The image must be the pinned one. Then pull, and check the image was
+  #    built from this commit.
+  STEP="image pin"
+  local pin
+  pin=$(pinned_repo)
+  [[ -n $pin ]] || finish 1 "refused sha=$sha: $PIN_FILE is missing or has no BACKEND_IMAGE_REPO; nothing changed"
   ref=$(backend_ref "$sha" || true)
   [[ -n $ref ]] || finish 1 "failed sha=$sha: no image for this tag in $COMPOSE_FILE; nothing changed"
+  [[ ${ref%:*} == "$pin" ]] || finish 1 "refused sha=$sha: the image is not the pinned repository; nothing changed"
+  STEP="pull"
+  quiet dc "$sha" pull medusa || finish 1 "failed sha=$sha: pull failed; nothing changed"
   label=$(docker image inspect --format '{{index .Config.Labels "org.opencontainers.image.revision"}}' "$ref" 2>>"$RUN_LOG" || true)
   [[ $label == "$sha" ]] || finish 1 "failed sha=$sha: the image's revision label does not match the tag; nothing changed"
 
-  # 6. Redis and the tunnel: started when missing (first deploy), otherwise
-  #    left exactly as they are.
+  # 6. Redis and the tunnel: started when missing (first deploy), recreated when
+  #    the settings file they read changed, otherwise left exactly as they are.
   STEP="redis and cloudflared"
-  quiet dc "$sha" up -d --wait --wait-timeout 60 --no-deps --no-recreate redis cloudflared ||
-    finish 1 "failed sha=$sha: redis or cloudflared did not start; the app was not changed"
+  local -a changed=() same=()
+  local svc file cur
+  for svc in redis:redis.env cloudflared:tunnel.env; do
+    file=${svc#*:}
+    svc=${svc%%:*}
+    cur=$(env_hash "$file")
+    if [[ -z $cur || $cur != "$(recorded_hash "$svc")" ]]; then
+      changed+=("$svc")
+    else
+      same+=("$svc")
+    fi
+  done
+  if ((${#changed[@]} > 0)); then
+    record "recreate ${changed[*]}: settings changed or not recorded yet"
+    quiet dc "$sha" up -d --wait --wait-timeout 60 --no-deps --force-recreate "${changed[@]}" ||
+      finish 1 "failed sha=$sha: ${changed[*]} did not come up with the new settings; fix them and deploy again"
+  fi
+  if ((${#same[@]} > 0)); then
+    quiet dc "$sha" up -d --wait --wait-timeout 60 --no-deps --no-recreate "${same[@]}" ||
+      finish 1 "failed sha=$sha: ${same[*]} did not start; the app was not changed"
+  fi
+  {
+    printf 'redis %s\n' "$(env_hash redis.env)"
+    printf 'cloudflared %s\n' "$(env_hash tunnel.env)"
+  } >"$ENV_HASH_FILE.tmp"
+  mv -f "$ENV_HASH_FILE.tmp" "$ENV_HASH_FILE"
 
   # 7. Migrations, in a one-off container. On failure the old app is still
   #    running and nothing else changed. stdin is closed: db:migrate asks

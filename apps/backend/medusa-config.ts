@@ -22,6 +22,10 @@ const dbDriverOptions = databaseDriverOptions()
 
 const redisUrl = process.env.REDIS_URL
 
+// Empty or unset STRIPE_API_KEY: no Stripe provider (preview mode only; the
+// production check refuses an empty key unless CHECKOUT_PAUSED=true).
+const stripeConfigured = !!process.env.STRIPE_API_KEY?.trim()
+
 // Redis-backed modules register only when REDIS_URL is set. Without it Medusa
 // falls back to in-memory versions, which is fine for one local process.
 const redisModules = redisUrl
@@ -105,24 +109,29 @@ module.exports = defineConfig({
     // Payment methods shown at checkout (cards, Apple/Google Pay, Afterpay,
     // Zip) are switched on in the Stripe dashboard, not here, because
     // automaticPaymentMethods lets Stripe decide what to offer.
+    // Registered only when STRIPE_API_KEY is set: in preview mode
+    // (CHECKOUT_PAUSED=true, production-env.ts) there is no key, and the
+    // checkout routes are refused anyway (src/lib/checkout-paused.ts).
     {
       resolve: "@medusajs/medusa/payment",
       options: {
-        providers: [
-          {
-            resolve: "@medusajs/medusa/payment-stripe",
-            id: "stripe",
-            options: {
-              apiKey: process.env.STRIPE_API_KEY,
-              webhookSecret: process.env.STRIPE_WEBHOOK_SECRET,
-              // Charge when the order is placed. Refunds are done from the
-              // order page in the admin.
-              capture: true,
-              automaticPaymentMethods: true,
-              paymentDescription: process.env.STORE_NAME || "Azira",
-            },
-          },
-        ],
+        providers: stripeConfigured
+          ? [
+              {
+                resolve: "@medusajs/medusa/payment-stripe",
+                id: "stripe",
+                options: {
+                  apiKey: process.env.STRIPE_API_KEY,
+                  webhookSecret: process.env.STRIPE_WEBHOOK_SECRET,
+                  // Charge when the order is placed. Refunds are done from the
+                  // order page in the admin.
+                  capture: true,
+                  automaticPaymentMethods: true,
+                  paymentDescription: process.env.STORE_NAME || "Azira",
+                },
+              },
+            ]
+          : [],
       },
     },
     ...redisModules,

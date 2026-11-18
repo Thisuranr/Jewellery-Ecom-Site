@@ -1,10 +1,12 @@
 "use client"
 
 import { retrieveCart } from "@lib/data/cart"
+import { CHECKOUT_PAUSED } from "@lib/checkout-paused"
 import { CART_UPDATED_EVENT } from "@lib/util/cart-events"
 import { convertToLocale } from "@lib/util/money"
 import { HttpTypes } from "@medusajs/types"
 import Item from "@modules/cart/components/item"
+import CheckoutPausedNote from "@modules/checkout/components/checkout-paused-note"
 import Drawer from "@modules/common/components/drawer"
 import LocalizedClientLink from "@modules/common/components/localized-client-link"
 import { usePathname } from "next/navigation"
@@ -111,16 +113,22 @@ const CartDropdown = ({
                   })}
                 </span>
               </div>
-              <p className="text-[12px] font-light text-muted">
-                Shipping is calculated at checkout.
-              </p>
-              <LocalizedClientLink
-                href="/checkout"
-                className="btn-solid w-full"
-                data-testid="drawer-checkout-button"
-              >
-                Checkout
-              </LocalizedClientLink>
+              {CHECKOUT_PAUSED ? (
+                <CheckoutPausedNote />
+              ) : (
+                <>
+                  <p className="text-[12px] font-light text-muted">
+                    Shipping is calculated at checkout.
+                  </p>
+                  <LocalizedClientLink
+                    href="/checkout"
+                    className="btn-solid w-full"
+                    data-testid="drawer-checkout-button"
+                  >
+                    Checkout
+                  </LocalizedClientLink>
+                </>
+              )}
               <LocalizedClientLink
                 href="/cart"
                 className="btn-outline w-full"

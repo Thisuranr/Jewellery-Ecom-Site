@@ -53,7 +53,7 @@
       // then replace database_id below with the id it prints.
       "binding": "NEXT_TAG_CACHE_D1",
       "database_name": "azira-tag-cache",
-      "database_id": "REPLACE_AFTER_wrangler_d1_create"
+      "database_id": "dc528171-3815-43f1-9205-b424601a9a52"
     }
   ]
 }

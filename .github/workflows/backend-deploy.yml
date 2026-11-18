@@ -2,7 +2,11 @@ name: Backend deploy
 
 # Builds the backend image and deploys it to the droplet. Runs on a push to main
 # that changes the backend or the image recipe, and by hand (Actions > Backend
-# deploy > Run workflow). It does NOT run for other branches.
+# deploy > Run workflow). It only ever runs for refs/heads/main: the image and
+# deploy jobs are skipped on any other branch (job-level `if:`), the deploy job
+# also stops in its first step if it is somehow started elsewhere, and the
+# `production` environment only allows the main branch to read its secrets.
+# Whatever sha is deployed must be a commit on main.
 #
 # How it reaches the droplet: SSH as the restricted `deploy` user. Its
 # authorized_keys line forces ONE command (/opt/azira/bin/deploy-gate.sh), which
@@ -12,18 +16,22 @@ name: Backend deploy
 #                            tunnel.env, the Supabase CA and compose/.env
 #   deploy <40-hex sha>      -> deploy.sh: pull, migrate, health check, roll back on failure
 #   deploy <sha> --now       same (there is no deploy window unless one is configured)
-# So this workflow's key can set the production settings and deploy an image that
-# is in the registry, and nothing else: no shell, no Docker, no port forwarding.
+# So this workflow's key can set the production settings and deploy an image from
+# the ONE repository the droplet is pinned to (/opt/azira/image-pin.env, written at
+# bootstrap and root-owned; apply-env.sh and deploy.sh refuse any other image or
+# registry user), and nothing else: no shell, no Docker, no port forwarding.
 # The host key is checked against DEPLOY_KNOWN_HOSTS (StrictHostKeyChecking=yes).
 #
-# Production settings come from GitHub repository secrets and variables (the names
-# are listed in docs/hosting.md). The droplet pulls the private image with this
+# Production settings come from the secrets of the GitHub environment `production`
+# (Settings > Environments, deployment branches: main only) and from repository
+# variables (the names are listed in docs/hosting.md). The droplet pulls the private image with this
 # run's short-lived GITHUB_TOKEN (docker login in apply-env.sh), so no long-lived
 # registry token is stored anywhere.
 #
 # Inputs
-# - sha: leave empty to deploy the commit this run was started on (a push to main
-#   builds it first). Enter a full 40-character sha to deploy an older image (a
+# - sha: leave empty to deploy the commit this run was started on: the head of main
+#   (a run on main builds it first; the run's commit is main's newest commit when it
+#   started). Enter a full 40-character sha to deploy an older image (a
 #   rollback): it must be a commit on main and its image must exist in GHCR.
 #
 # Secrets and variables reach the scripts only through env:, never through the
@@ -60,8 +68,8 @@ permissions: {}
 jobs:
   image:
     name: Build the image
-    # A rollback to an older sha needs no build.
-    if: ${{ inputs.sha == '' }}
+    # Only main is built here; a rollback to an older sha needs no build.
+    if: ${{ github.ref == 'refs/heads/main' && inputs.sha == '' }}
     permissions:
       contents: read
       packages: write
@@ -70,15 +78,19 @@ jobs:
   deploy:
     name: Deploy to the droplet
     needs: image
-    # Runs after a successful build, or after a skipped one (rollback), never after a failed one.
-    if: ${{ !cancelled() && (needs.image.result == 'success' || needs.image.result == 'skipped') }}
+    # Only for main. Runs after a successful build, or after a skipped one (rollback),
+    # never after a failed one.
+    if: ${{ !cancelled() && github.ref == 'refs/heads/main' && (needs.image.result == 'success' || needs.image.result == 'skipped') }}
     runs-on: ubuntu-latest
     timeout-minutes: 25
+    # The production secrets are environment secrets; the environment is limited
+    # to the main branch (docs/hosting.md, "GitHub environment").
+    environment: production
     permissions:
       contents: read
       packages: read
     env:
-      # --- secrets (GitHub repository secrets) ---
+      # --- secrets (secrets of the GitHub environment "production") ---
       DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
       DEPLOY_KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
       DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
@@ -94,6 +106,9 @@ jobs:
       RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
       TUNNEL_TOKEN: ${{ secrets.TUNNEL_TOKEN }}
       # --- variables (not secret; the defaults are the real Azira values) ---
+      # Preview mode: "true" (the default) pauses checkout and lets Stripe and Resend
+      # be absent. Set the variable to "false" once Stripe and Resend are set up.
+      CHECKOUT_PAUSED: ${{ vars.CHECKOUT_PAUSED || 'true' }}
       STORE_NAME: ${{ vars.STORE_NAME || 'Azira' }}
       STORE_NOTIFY_EMAIL: ${{ vars.STORE_NOTIFY_EMAIL }}
       CUSTOM_ORDER_EMAIL: ${{ vars.CUSTOM_ORDER_EMAIL }}
@@ -109,15 +124,36 @@ jobs:
       R2_ENDPOINT: ${{ vars.R2_ENDPOINT || 'https://7b7865326875e0dea1285c31309d77a4.r2.cloudflarestorage.com' }}
       R2_BUCKET: ${{ vars.R2_BUCKET || 'azira-images' }}
     steps:
+      - name: Only main deploys
+        env:
+          REF: ${{ github.ref }}
+        run: |
+          if [ "$REF" != "refs/heads/main" ]; then
+            echo "::error title=Not main::The production deploy only runs on main (this run is on ${REF}). Nothing was deployed."
+            exit 1
+          fi
+
       - name: Check the secrets and variables
         id: cfg
         run: |
           set -euo pipefail
+          case "$CHECKOUT_PAUSED" in
+            true|false) ;;
+            *)
+              echo "::error title=CHECKOUT_PAUSED is not valid::The variable CHECKOUT_PAUSED must be true or false."
+              exit 1
+              ;;
+          esac
+          required="DEPLOY_SSH_KEY DEPLOY_KNOWN_HOSTS DEPLOY_HOST DATABASE_URL SUPABASE_CA_CERT \
+            REDIS_PASSWORD JWT_SECRET COOKIE_SECRET \
+            R2_ACCESS_KEY_ID R2_SECRET_ACCESS_KEY TUNNEL_TOKEN \
+            STORE_NOTIFY_EMAIL CUSTOM_ORDER_EMAIL"
+          # Real sales need Stripe and Resend; a paused preview does not.
+          if [ "$CHECKOUT_PAUSED" != "true" ]; then
+            required="$required STRIPE_API_KEY STRIPE_WEBHOOK_SECRET RESEND_API_KEY"
+          fi
           missing=""
-          for name in DEPLOY_SSH_KEY DEPLOY_KNOWN_HOSTS DEPLOY_HOST DATABASE_URL SUPABASE_CA_CERT \
-            REDIS_PASSWORD JWT_SECRET COOKIE_SECRET STRIPE_API_KEY STRIPE_WEBHOOK_SECRET \
-            R2_ACCESS_KEY_ID R2_SECRET_ACCESS_KEY RESEND_API_KEY TUNNEL_TOKEN \
-            STORE_NOTIFY_EMAIL CUSTOM_ORDER_EMAIL; do
+          for name in $required; do
             [ -n "${!name}" ] || missing="$missing $name"
           done
           if [ -n "$missing" ]; then
@@ -137,7 +173,7 @@ jobs:
           # Each setting travels as one line: a newline would corrupt the request.
           # (SUPABASE_CA_CERT is the one multi-line value; it is base64-encoded below.)
           for name in DATABASE_URL REDIS_PASSWORD JWT_SECRET COOKIE_SECRET STRIPE_API_KEY STRIPE_WEBHOOK_SECRET \
-            R2_ACCESS_KEY_ID R2_SECRET_ACCESS_KEY RESEND_API_KEY TUNNEL_TOKEN STORE_NAME STORE_NOTIFY_EMAIL \
+            R2_ACCESS_KEY_ID R2_SECRET_ACCESS_KEY RESEND_API_KEY TUNNEL_TOKEN CHECKOUT_PAUSED STORE_NAME STORE_NOTIFY_EMAIL \
             CUSTOM_ORDER_EMAIL STORE_ABN EMAIL_FROM EMAIL_REPLY_TO STORE_CORS ADMIN_CORS AUTH_CORS STOREFRONT_URL \
             MEDUSA_BACKEND_URL FILE_URL R2_ENDPOINT R2_BUCKET; do
             if [[ ${!name} == *$'\n'* || ${!name} == *$'\r'* ]]; then
@@ -170,24 +206,25 @@ jobs:
           sha="${SHA_INPUT//[[:space:]]/}"
           sha="${sha,,}"
           if [ -z "$sha" ]; then
+            # No input: the commit this run started on. The run is on main (the
+            # job's `if:` and the first step guarantee it), so that is main's
+            # newest commit as of the start of the run, and the image job built it.
             sha="$RUN_SHA"
-          else
-            if ! [[ $sha =~ ^[0-9a-f]{40}$ ]]; then
-              echo "::error title=Bad sha::The sha input must be the full 40-character commit sha, or empty."
-              exit 1
-            fi
-            # Only commits on main are deployed. compare/main...<sha> says
-            # "behind" when main contains the sha, "identical" when it is main's
-            # head; "ahead" or "diverged" means unmerged commits.
-            on_main="$(gh api "repos/${REPO}/compare/main...${sha}" --jq .status 2>/dev/null || true)"
-            case "$on_main" in
-              identical|behind) ;;
-              *)
-                echo "::error title=Not on main::${sha} is not a commit on main, so it is not deployed. Merge it into main first."
-                exit 1
-                ;;
-            esac
+          elif ! [[ $sha =~ ^[0-9a-f]{40}$ ]]; then
+            echo "::error title=Bad sha::The sha input must be the full 40-character commit sha, or empty."
+            exit 1
           fi
+          # Only commits on main are deployed, whatever the input. compare/main...<sha>
+          # says "behind" when main contains the sha, "identical" when it is main's
+          # head; "ahead" or "diverged" means unmerged commits.
+          on_main="$(gh api "repos/${REPO}/compare/main...${sha}" --jq .status 2>/dev/null || true)"
+          case "$on_main" in
+            identical|behind) ;;
+            *)
+              echo "::error title=Not on main::${sha} is not a commit on main, so it is not deployed. Merge it into main first."
+              exit 1
+              ;;
+          esac
           if ! [[ $sha =~ ^[0-9a-f]{40}$ ]]; then
             echo "::error title=Bad sha::The resolved sha is not 40 lowercase hex characters."
             exit 1
@@ -249,16 +286,22 @@ jobs:
             printf '%s=%s\n' STORE_NAME "$STORE_NAME"
             printf '%s=%s\n' STORE_NOTIFY_EMAIL "$STORE_NOTIFY_EMAIL"
             printf '%s=%s\n' CUSTOM_ORDER_EMAIL "$CUSTOM_ORDER_EMAIL"
-            printf '%s=%s\n' STRIPE_API_KEY "$STRIPE_API_KEY"
-            printf '%s=%s\n' STRIPE_WEBHOOK_SECRET "$STRIPE_WEBHOOK_SECRET"
+            printf '%s=%s\n' CHECKOUT_PAUSED "$CHECKOUT_PAUSED"
+            [ -z "$STRIPE_API_KEY" ] || printf '%s=%s\n' STRIPE_API_KEY "$STRIPE_API_KEY"
+            [ -z "$STRIPE_WEBHOOK_SECRET" ] || printf '%s=%s\n' STRIPE_WEBHOOK_SECRET "$STRIPE_WEBHOOK_SECRET"
             printf '%s=%s\n' FILE_PROVIDER s3
             printf '%s=%s\n' FILE_URL "$FILE_URL"
             printf '%s=%s\n' R2_ACCESS_KEY_ID "$R2_ACCESS_KEY_ID"
             printf '%s=%s\n' R2_SECRET_ACCESS_KEY "$R2_SECRET_ACCESS_KEY"
             printf '%s=%s\n' R2_ENDPOINT "$R2_ENDPOINT"
             printf '%s=%s\n' R2_BUCKET "$R2_BUCKET"
-            printf '%s=%s\n' EMAIL_TRANSPORT resend
-            printf '%s=%s\n' RESEND_API_KEY "$RESEND_API_KEY"
+            # Paused with no Resend key: emails are only logged (console), never sent.
+            if [ -n "$RESEND_API_KEY" ]; then
+              printf '%s=%s\n' EMAIL_TRANSPORT resend
+              printf '%s=%s\n' RESEND_API_KEY "$RESEND_API_KEY"
+            else
+              printf '%s=%s\n' EMAIL_TRANSPORT console
+            fi
             printf '%s=%s\n' EMAIL_FROM "$EMAIL_FROM"
             [ -z "$EMAIL_REPLY_TO" ] || printf '%s=%s\n' EMAIL_REPLY_TO "$EMAIL_REPLY_TO"
             [ -z "$STORE_ABN" ] || printf '%s=%s\n' STORE_ABN "$STORE_ABN"

@@ -11,9 +11,10 @@
 #   STUB_BAD_LABEL=1      the image's revision label is wrong
 #   STUB_IMAGES="<tag> ..."      sha tags `docker image ls` reports
 #   STUB_FAIL_LOGIN=1     `docker login` fails
+#   STUB_IMAGE_REPO=<repo>  the repository the compose file resolves to
 set -euo pipefail
 
-repo=ghcr.io/test/azira-backend
+repo=${STUB_IMAGE_REPO:-ghcr.io/test/azira-backend}
 printf 'IMAGE_TAG=%s docker %s\n' "${IMAGE_TAG:-}" "$*" >>"$STUB_LOG"
 
 has() { # has <word> <list>
@@ -32,7 +33,7 @@ if [[ ${1-} == compose ]]; then
     *" config --images "*)
       printf '%s\n' "$repo:${IMAGE_TAG:?}" "redis:7.4.11-bookworm@sha256:0" "cloudflare/cloudflared:2026.10.0@sha256:0"
       exit 0 ;;
-    *" up "*" redis cloudflared "*)
+    *" up -d --wait "*)
       [[ ${STUB_FAIL_SERVICES:-0} == 1 ]] && exit 1
       exit 0 ;;
     *" run --rm -T migrate "*)

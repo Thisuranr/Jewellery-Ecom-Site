@@ -5,9 +5,11 @@ name: Backend image
 #   ghcr.io/<owner>/azira-backend:<commit sha>
 # The droplet pulls that exact tag (backend-deploy, infra/deploy/deploy.sh).
 #
-# Triggers: by hand (workflow_dispatch builds the branch you pick) and from
+# Triggers: by hand (workflow_dispatch) and from
 # backend-deploy.yml (workflow_call), which is what runs on a push to main. It has
-# no push trigger of its own, so a push builds once, not twice.
+# no push trigger of its own, so a push builds once, not twice. It only builds
+# refs/heads/main (job-level `if:` plus a first step that fails otherwise): an
+# unmerged branch never gets an image in the production registry namespace.
 #
 # - The admin dashboard bundle bakes the admin host in at build time: ADMIN_URL
 #   (repository variable, default https://admin.azira.com.au).
@@ -37,6 +39,8 @@ permissions: {}
 jobs:
   build:
     name: Build and push the backend image
+    # Only main is built and pushed (also when started by hand on another branch).
+    if: ${{ github.ref == 'refs/heads/main' }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
     # packages: write is needed here and nowhere else.
@@ -48,6 +52,15 @@ jobs:
     env:
       ADMIN_URL: ${{ vars.ADMIN_URL || 'https://admin.azira.com.au' }}
     steps:
+      - name: Only main is built
+        env:
+          REF: ${{ github.ref }}
+        run: |
+          if [ "$REF" != "refs/heads/main" ]; then
+            echo "::error title=Not main::The production image is only built from main (this run is on ${REF})."
+            exit 1
+          fi
+
       - name: Check ADMIN_URL and name the image
         id: names
         env:

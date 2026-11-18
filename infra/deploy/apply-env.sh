@@ -15,7 +15,9 @@
 # payload leaves the previous files as they were. Messages name keys only,
 # never values.
 #
-# Files written (all atomic: written to a temp file, then renamed):
+# Files written (all of them are first written to temp files next to their
+# destinations, and only when every temp file is complete are they renamed into
+# place, so a failure half way leaves the previous set as it was):
 #   /opt/azira/.env              0600 root  the backend's settings (medusa, migrate)
 #   /opt/azira/redis.env         0600 root  REDIS_PASSWORD, read by the redis container only
 #   /opt/azira/tunnel.env        0600 root  TUNNEL_TOKEN, read by cloudflared only
@@ -23,6 +25,17 @@
 #   /opt/azira/compose/.env      0644       BACKEND_IMAGE (not secret)
 # And one side effect: docker login to ghcr.io from GHCR_USER + GHCR_TOKEN (the
 # workflow's short-lived GITHUB_TOKEN), so the droplet can pull the private image.
+#
+# The image is pinned on the server: /opt/azira/image-pin.env (root:root 0644,
+# written by infra/vps/bootstrap.sh) holds BACKEND_IMAGE_REPO and GHCR_OWNER.
+# BACKEND_IMAGE must equal BACKEND_IMAGE_REPO and GHCR_USER must be GHCR_OWNER
+# (compared in lower case), or the whole payload is refused. Without the pin file
+# nothing is accepted. So the deploy key cannot make the droplet run (or log in
+# to the registry as) anybody else's image. deploy.sh checks the pin again.
+#
+# Preview mode: CHECKOUT_PAUSED=true lets STRIPE_API_KEY, STRIPE_WEBHOOK_SECRET
+# and RESEND_API_KEY be absent and EMAIL_TRANSPORT be console. Anything else (or
+# no CHECKOUT_PAUSED at all) means real sales: Stripe and Resend are required.
 #
 # Value rules (a value may be pasted by a person, then travels as one line):
 # no $ " ' \ or backtick (Docker Compose would expand or unquote them), no
@@ -53,14 +66,14 @@ readonly MAX_LINES=120
 readonly REQUIRED_BACKEND=(
   DATABASE_URL DB_SSL DB_CA_PATH REDIS_URL
   JWT_SECRET COOKIE_SECRET STORE_CORS ADMIN_CORS AUTH_CORS
-  STRIPE_API_KEY STRIPE_WEBHOOK_SECRET
   FILE_PROVIDER FILE_URL R2_ACCESS_KEY_ID R2_SECRET_ACCESS_KEY R2_ENDPOINT R2_BUCKET
-  EMAIL_TRANSPORT RESEND_API_KEY EMAIL_FROM
+  EMAIL_TRANSPORT EMAIL_FROM
   STORE_NAME STORE_NOTIFY_EMAIL CUSTOM_ORDER_EMAIL STOREFRONT_URL MEDUSA_BACKEND_URL
 )
 readonly OPTIONAL_BACKEND=(
   EMAIL_REPLY_TO STORE_ABN WORKER_MODE MEDUSA_DISABLE_TELEMETRY CUSTOM_ENQUIRY_HOURLY_CAP
   R2_REGION
+  CHECKOUT_PAUSED STRIPE_API_KEY STRIPE_WEBHOOK_SECRET RESEND_API_KEY
 )
 # Keys this script consumes itself; never written to the backend's .env.
 readonly REQUIRED_SPECIAL=(REDIS_PASSWORD TUNNEL_TOKEN DB_CA_CERT_B64 BACKEND_IMAGE)
@@ -69,6 +82,8 @@ readonly OPTIONAL_SPECIAL=(GHCR_USER GHCR_TOKEN)
 declare -A VALUE=()
 declare -A KIND=() # key -> backend | special
 TMP_FILES=()
+STAGED_TMP=()
+STAGED_DEST=()
 
 fail() {
   printf 'apply-env: refused: %s\n' "$*" >&2
@@ -123,6 +138,31 @@ for k in "${REQUIRED_BACKEND[@]}" "${REQUIRED_SPECIAL[@]}"; do
   [[ -n ${VALUE[$k]-} ]] || fail "required key $k is missing or empty"
 done
 
+# Preview mode or real sales. CHECKOUT_PAUSED is exactly true or false.
+paused=0
+if [[ -n ${VALUE[CHECKOUT_PAUSED]-} ]]; then
+  [[ ${VALUE[CHECKOUT_PAUSED]} == true || ${VALUE[CHECKOUT_PAUSED]} == false ]] ||
+    fail "CHECKOUT_PAUSED must be true or false"
+  [[ ${VALUE[CHECKOUT_PAUSED]} == true ]] && paused=1
+fi
+if ((paused == 0)); then
+  for k in STRIPE_API_KEY STRIPE_WEBHOOK_SECRET RESEND_API_KEY; do
+    [[ -n ${VALUE[$k]-} ]] || fail "required key $k is missing or empty (set CHECKOUT_PAUSED=true only for a preview without payments)"
+  done
+  [[ ${VALUE[EMAIL_TRANSPORT]} == resend ]] || fail "EMAIL_TRANSPORT must be resend unless CHECKOUT_PAUSED=true"
+else
+  [[ ${VALUE[EMAIL_TRANSPORT]} == resend || ${VALUE[EMAIL_TRANSPORT]} == console ]] ||
+    fail "EMAIL_TRANSPORT must be resend or console"
+  if [[ ${VALUE[EMAIL_TRANSPORT]} == resend ]]; then
+    [[ -n ${VALUE[RESEND_API_KEY]-} ]] || fail "RESEND_API_KEY is required when EMAIL_TRANSPORT is resend"
+  fi
+  # A half-set Stripe pair is a mistake, not a preview.
+  if [[ -n ${VALUE[STRIPE_API_KEY]-} || -n ${VALUE[STRIPE_WEBHOOK_SECRET]-} ]]; then
+    [[ -n ${VALUE[STRIPE_API_KEY]-} && -n ${VALUE[STRIPE_WEBHOOK_SECRET]-} ]] ||
+      fail "STRIPE_API_KEY and STRIPE_WEBHOOK_SECRET must be given together"
+  fi
+fi
+
 # --- 2. format checks for the keys that wire the stack together -------------
 [[ ${VALUE[DB_SSL]} == true ]] || fail "DB_SSL must be true"
 [[ ${VALUE[DB_CA_PATH]} == /run/secrets/supabase-ca.crt ]] || fail "DB_CA_PATH must be /run/secrets/supabase-ca.crt"
@@ -134,8 +174,24 @@ done
 [[ ${VALUE[TUNNEL_TOKEN]} =~ ^[A-Za-z0-9_=+/-]{40,4000}$ ]] || fail "TUNNEL_TOKEN does not look like a Cloudflare tunnel token"
 [[ ${VALUE[BACKEND_IMAGE]} =~ ^ghcr\.io/[a-z0-9][a-z0-9._-]*/[a-z0-9][a-z0-9._/-]*$ ]] ||
   fail "BACKEND_IMAGE must be a lowercase ghcr.io/<owner>/<name> reference without a tag"
+
+# The pinned image and registry user (written at bootstrap, root-owned).
+pin_get() { # pin_get <key>: the value from the pin file, or nothing
+  local line
+  line=$(grep -m1 -E "^$1=" "$PIN_FILE" 2>/dev/null || true)
+  printf '%s' "${line#*=}"
+}
+readonly PIN_FILE="$SHOP_DIR/image-pin.env"
+[[ -f $PIN_FILE ]] || fail "$PIN_FILE is missing; run infra/vps/bootstrap.sh (it pins the image repository)"
+PIN_REPO=$(pin_get BACKEND_IMAGE_REPO)
+PIN_OWNER=$(pin_get GHCR_OWNER)
+[[ $PIN_REPO =~ ^ghcr\.io/[a-z0-9][a-z0-9._-]*/[a-z0-9][a-z0-9._/-]*$ && $PIN_OWNER =~ ^[a-z0-9][a-z0-9-]{0,38}$ ]] ||
+  fail "$PIN_FILE does not hold a valid BACKEND_IMAGE_REPO and GHCR_OWNER"
+[[ ${VALUE[BACKEND_IMAGE]} == "$PIN_REPO" ]] || fail "BACKEND_IMAGE is not the image this server is pinned to"
 if [[ -n ${VALUE[GHCR_TOKEN]-} ]]; then
   [[ ${VALUE[GHCR_USER]-} =~ ^[A-Za-z0-9-]{1,39}$ ]] || fail "GHCR_USER must be a GitHub user name when GHCR_TOKEN is given"
+  user_lc=${VALUE[GHCR_USER],,}
+  [[ $user_lc == "$PIN_OWNER" ]] || fail "GHCR_USER is not the registry user this server is pinned to"
   [[ ${VALUE[GHCR_TOKEN]} =~ ^[A-Za-z0-9_]{20,255}$ ]] || fail "GHCR_TOKEN does not look like a GitHub token"
 fi
 
@@ -153,14 +209,23 @@ mkdir -p "$SHOP_DIR/certs" "$SHOP_DIR/compose"
 exec 9>"$SHOP_DIR/deploy.lock"
 flock -w 300 9 || fail "a deploy is running and did not finish within 300 s; try again"
 
-# write_file <dest> <mode>: the content comes on stdin
+# write_file <dest> <mode>: the content comes on stdin. Only stages a temp file
+# next to <dest>; commit_files renames them all once every file is complete.
 write_file() {
   local dest=$1 mode=$2 tmp
   tmp=$(mktemp "$dest.XXXXXX")
   TMP_FILES+=("$tmp")
   cat >"$tmp"
   chmod "$mode" "$tmp"
-  mv -f -- "$tmp" "$dest"
+  STAGED_TMP+=("$tmp")
+  STAGED_DEST+=("$dest")
+}
+
+commit_files() {
+  local i
+  for i in "${!STAGED_TMP[@]}"; do
+    mv -f -- "${STAGED_TMP[$i]}" "${STAGED_DEST[$i]}"
+  done
 }
 
 backend_env() {
@@ -171,11 +236,13 @@ backend_env() {
   return 0
 }
 
-backend_env | write_file "$SHOP_DIR/.env" 0600
-printf 'REDIS_PASSWORD=%s\n' "${VALUE[REDIS_PASSWORD]}" | write_file "$SHOP_DIR/redis.env" 0600
-printf 'TUNNEL_TOKEN=%s\n' "${VALUE[TUNNEL_TOKEN]}" | write_file "$SHOP_DIR/tunnel.env" 0600
+# Not through a pipe: write_file must run in this shell to keep its staging lists.
+write_file "$SHOP_DIR/.env" 0600 < <(backend_env)
+write_file "$SHOP_DIR/redis.env" 0600 <<<"REDIS_PASSWORD=${VALUE[REDIS_PASSWORD]}"
+write_file "$SHOP_DIR/tunnel.env" 0600 <<<"TUNNEL_TOKEN=${VALUE[TUNNEL_TOKEN]}"
 write_file "$SHOP_DIR/certs/supabase-ca.crt" 0644 <"$ca_tmp"
-printf 'BACKEND_IMAGE=%s\n' "${VALUE[BACKEND_IMAGE]}" | write_file "$SHOP_DIR/compose/.env" 0644
+write_file "$SHOP_DIR/compose/.env" 0644 <<<"BACKEND_IMAGE=${VALUE[BACKEND_IMAGE]}"
+commit_files
 
 count=0
 for k in "${!VALUE[@]}"; do count=$((count + 1)); done

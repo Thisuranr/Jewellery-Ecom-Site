@@ -170,4 +170,86 @@ describe("production environment checks", () => {
       expect(failures).not.toContain(word)
     }
   })
+
+  describe("preview mode (CHECKOUT_PAUSED=true)", () => {
+    const noStripe = { STRIPE_API_KEY: undefined, STRIPE_WEBHOOK_SECRET: undefined }
+    const noResend = { RESEND_API_KEY: undefined, EMAIL_TRANSPORT: "console" }
+
+    it("accepts no Stripe keys and console email when paused", () => {
+      expect(productionEnvFailures(production({ CHECKOUT_PAUSED: "true", ...noStripe, ...noResend }))).toEqual([])
+      expect(() => assertProductionEnv(production({ CHECKOUT_PAUSED: "true", ...noStripe, ...noResend }), START)).not.toThrow()
+    })
+
+    it("accepts empty (not just missing) Stripe keys, and no EMAIL_TRANSPORT at all, when paused", () => {
+      const env = production({ CHECKOUT_PAUSED: "true", STRIPE_API_KEY: "", STRIPE_WEBHOOK_SECRET: "", EMAIL_TRANSPORT: undefined, RESEND_API_KEY: undefined })
+      expect(productionEnvFailures(env)).toEqual([])
+    })
+
+    it("still accepts the full set (Stripe and Resend present) when paused", () => {
+      expect(productionEnvFailures(production({ CHECKOUT_PAUSED: "true" }))).toEqual([])
+    })
+
+    it("still requires everything else when paused", () => {
+      const failures = productionEnvFailures(
+        production({
+          CHECKOUT_PAUSED: "true",
+          ...noStripe,
+          ...noResend,
+          DATABASE_URL: undefined,
+          JWT_SECRET: "short",
+          REDIS_URL: undefined,
+          FILE_PROVIDER: "local",
+          EMAIL_FROM: undefined,
+          CUSTOM_ORDER_EMAIL: "x@example.com",
+          STORE_CORS: "http://localhost:8000",
+        })
+      ).join("\n")
+      for (const name of ["DATABASE_URL", "JWT_SECRET", "REDIS_URL", "FILE_PROVIDER", "EMAIL_FROM", "CUSTOM_ORDER_EMAIL", "STORE_CORS"]) {
+        expect(failures).toContain(name)
+      }
+    })
+
+    it("refuses a half-set or placeholder Stripe pair even when paused", () => {
+      expect(productionEnvFailures(production({ CHECKOUT_PAUSED: "true", STRIPE_WEBHOOK_SECRET: undefined })).join(" ")).toContain("STRIPE_WEBHOOK_SECRET")
+      expect(productionEnvFailures(production({ CHECKOUT_PAUSED: "true", STRIPE_API_KEY: "sk_test_placeholder" })).join(" ")).toContain("STRIPE_API_KEY")
+    })
+
+    it("refuses resend without a key, and unknown transports, when paused", () => {
+      expect(productionEnvFailures(production({ CHECKOUT_PAUSED: "true", ...noStripe, RESEND_API_KEY: undefined, EMAIL_TRANSPORT: "resend" })).join(" ")).toContain("RESEND_API_KEY")
+      expect(productionEnvFailures(production({ CHECKOUT_PAUSED: "true", ...noStripe, EMAIL_TRANSPORT: "smtp" })).join(" ")).toContain("EMAIL_TRANSPORT")
+    })
+  })
+
+  describe("without CHECKOUT_PAUSED=true nothing is relaxed", () => {
+    const noStripe = { STRIPE_API_KEY: undefined, STRIPE_WEBHOOK_SECRET: undefined }
+    const noResend = { RESEND_API_KEY: undefined, EMAIL_TRANSPORT: "console" }
+
+    for (const value of [undefined, "", "false", "TRUE", "True", "1", "yes", " true", "true "]) {
+      it(`CHECKOUT_PAUSED=${JSON.stringify(value)} still requires Stripe and Resend`, () => {
+        const failures = productionEnvFailures(production({ CHECKOUT_PAUSED: value, ...noStripe, ...noResend })).join("\n")
+        expect(failures).toContain("STRIPE_API_KEY")
+        expect(failures).toContain("STRIPE_WEBHOOK_SECRET")
+        expect(failures).toContain("EMAIL_TRANSPORT")
+        expect(failures).toContain("RESEND_API_KEY")
+      })
+    }
+
+    it("refuses a CHECKOUT_PAUSED that is neither true nor false", () => {
+      for (const value of ["TRUE", "yes", "1", " true"]) {
+        expect(productionEnvFailures(production({ CHECKOUT_PAUSED: value })).join(" ")).toContain("CHECKOUT_PAUSED")
+      }
+      for (const value of [undefined, "", "true", "false"]) {
+        expect(productionEnvFailures(production({ CHECKOUT_PAUSED: value })).join(" ")).not.toContain("CHECKOUT_PAUSED")
+      }
+    })
+
+    it("the old failure messages are unchanged", () => {
+      const failures = productionEnvFailures(production({ ...noStripe, ...noResend }))
+      expect(failures).toContain(
+        "STRIPE_API_KEY must be a real Stripe secret key (sk_live_... or rk_live_...), not empty or a placeholder"
+      )
+      expect(failures.some((f) => f.startsWith('EMAIL_TRANSPORT must be "resend" in production'))).toBe(true)
+      expect(failures).toContain("RESEND_API_KEY must be set (production sends email through Resend)")
+    })
+  })
 })

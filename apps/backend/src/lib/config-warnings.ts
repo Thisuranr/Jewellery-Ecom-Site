@@ -1,3 +1,4 @@
+import { isCheckoutPaused } from "./checkout-paused"
 import { isProductionNodeEnv } from "./production-env"
 
 const PLACEHOLDER = /placeholder|changeme|your[-_]|xxxx/iu
@@ -34,13 +35,19 @@ export function configWarnings(env: NodeJS.ProcessEnv = process.env): string[] {
       "[config] CUSTOM_ORDER_EMAIL is not set to a real address (it is empty or on example.com): custom order enquiries will not reach the store."
     )
   }
+  if (isCheckoutPaused(env)) {
+    out.push(
+      "[config] CHECKOUT_PAUSED=true: PREVIEW MODE. Checkout is closed: POST /store/carts/:id/complete and payment-session creation are refused (403), " +
+        "and no payment can be taken. Set CHECKOUT_PAUSED=false once Stripe and Resend are set up (docs/hosting.md, \"Before launch\")."
+    )
+  }
   if (isProductionNodeEnv(env)) {
     if (isLocalUrl(env.STOREFRONT_URL)) {
       out.push(
         "[config] STOREFRONT_URL is empty or points at localhost in production: password-reset and order links will be broken."
       )
     }
-    if (isPlaceholderSecret(env.STRIPE_API_KEY) || isPlaceholderSecret(env.STRIPE_WEBHOOK_SECRET)) {
+    if (!isCheckoutPaused(env) && (isPlaceholderSecret(env.STRIPE_API_KEY) || isPlaceholderSecret(env.STRIPE_WEBHOOK_SECRET))) {
       out.push(
         "[config] STRIPE_API_KEY or STRIPE_WEBHOOK_SECRET is empty or a placeholder in production: payments will fail."
       )

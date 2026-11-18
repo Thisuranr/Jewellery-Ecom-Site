@@ -3,6 +3,8 @@ import { retrieveCustomer } from "@lib/data/customer"
 import PaymentWrapper from "@modules/checkout/components/payment-wrapper"
 import CheckoutForm from "@modules/checkout/templates/checkout-form"
 import CheckoutSummary from "@modules/checkout/templates/checkout-summary"
+import CheckoutPausedNote from "@modules/checkout/components/checkout-paused-note"
+import { CHECKOUT_PAUSED } from "@lib/checkout-paused"
 import { Metadata } from "next"
 import { notFound } from "next/navigation"
 
@@ -11,6 +13,17 @@ export const metadata: Metadata = {
 }
 
 export default async function Checkout() {
+  // Preview mode: no steps, no payment form. The backend refuses to complete a cart as well.
+  if (CHECKOUT_PAUSED) {
+    return (
+      <div className="content-container py-16 small:py-24">
+        <div className="mx-auto max-w-[520px]">
+          <CheckoutPausedNote />
+        </div>
+      </div>
+    )
+  }
+
   const cart = await retrieveCart()
 
   if (!cart) {

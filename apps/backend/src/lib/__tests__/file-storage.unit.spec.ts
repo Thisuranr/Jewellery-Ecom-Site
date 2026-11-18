@@ -164,4 +164,11 @@ describe("medusa-config wiring", () => {
       if (saved !== undefined) process.env.FILE_PROVIDER = saved
     }
   })
+
+  it("strips trailing slashes from FILE_URL so image URLs have no //", () => {
+    for (const url of ["https://img.example.test/", "https://img.example.test///"]) {
+      const cfg = fileModuleConfig({ ...S3_ENV, FILE_URL: url })
+      expect((cfg.options.providers[0].options as Record<string, unknown>).file_url).toBe("https://img.example.test")
+    }
+  })
 })

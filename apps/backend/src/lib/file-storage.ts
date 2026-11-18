@@ -79,6 +79,8 @@ export function fileModuleConfig(env: Env = process.env): FileModuleConfig {
     for (const [name, option] of S3_REQUIRED) {
       options[option] = present(env[name])
     }
+    // Image URLs are file_url + "/" + key, so a trailing "/" in FILE_URL would give "//".
+    options.file_url = (options.file_url as string).replace(/\/+$/, "")
     return {
       resolve: "@medusajs/medusa/file",
       options: {

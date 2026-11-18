@@ -59,6 +59,11 @@ else
 fi
 chmod +x "$STUBS"/*
 
+seed_hashes() { # records the current hashes of redis.env and tunnel.env
+  printf 'redis %s\ncloudflared %s\n' \
+    "$(sha256sum "$SHOP/redis.env" | cut -d' ' -f1)" "$(sha256sum "$SHOP/tunnel.env" | cut -d' ' -f1)" >"$SHOP/service-env.sha256"
+}
+
 # new_case: a fresh /opt/azira, stub state and patched deploy.sh in $CASE.
 new_case() {
   CASE=$(mktemp -d "$WORK/case.XXXXXX")
@@ -66,8 +71,14 @@ new_case() {
   mkdir -p "$SHOP/compose" "$CASE/state"
   export STUB_LOG="$CASE/docker.log" STUB_STATE="$CASE/state" STUB_SUDO_ARGS="$CASE/sudo.args"
   : >"$STUB_LOG"
+  # The pin, and redis/tunnel settings whose recorded hashes match (so the
+  # services are left alone unless a test changes a file).
+  printf 'BACKEND_IMAGE_REPO=ghcr.io/test/azira-backend\nGHCR_OWNER=test\n' >"$SHOP/image-pin.env"
+  printf 'REDIS_PASSWORD=abc\n' >"$SHOP/redis.env"
+  printf 'TUNNEL_TOKEN=tok\n' >"$SHOP/tunnel.env"
+  seed_hashes
   unset STUB_FAIL_PULL STUB_FAIL_MIGRATE STUB_FAIL_UP STUB_FAIL_SERVICES STUB_UNHEALTHY \
-    STUB_STARTING STUB_BAD_LABEL STUB_IMAGES STUB_LOCK_HELD FAKE_HOUR FAKE_OFFSET
+    STUB_STARTING STUB_BAD_LABEL STUB_IMAGE_REPO STUB_IMAGES STUB_LOCK_HELD FAKE_HOUR FAKE_OFFSET
   sed -e "s#^SHOP_DIR=.*#SHOP_DIR=$SHOP#" \
     -e "s#^COMPOSE_DIR=.*#COMPOSE_DIR=$SHOP/compose#" \
     -e "s#^HEALTH_TIMEOUT=.*#HEALTH_TIMEOUT=3#" \
@@ -276,6 +287,98 @@ run_deploy "$SHA_NEW"
 expect "a corrupt current_tag is refused before any docker call" \
   bash -c '[[ $0 == 1 && ! -s $1 ]]' "$RC" "$STUB_LOG"
 
+# --- deploy.sh: the image pin -------------------------------------------------
+new_case
+export STUB_IMAGE_REPO=ghcr.io/evil/azira-backend
+run_deploy "$SHA_NEW"
+expect "pin: an image from another repository is refused before any pull" \
+  bash -c '[[ $0 == 1 && $1 == *"not the pinned repository"* ]] && ! grep -q -e "pull" -e migrate -e "up " "$2"' "$RC" "$OUT" "$STUB_LOG"
+unset STUB_IMAGE_REPO
+
+new_case
+rm "$SHOP/image-pin.env"
+run_deploy "$SHA_NEW"
+expect "pin: a missing pin file refuses (nothing is pulled)" \
+  bash -c '[[ $0 == 1 && $1 == *"image-pin.env"* ]] && ! grep -q -e "pull" -e migrate "$2"' "$RC" "$OUT" "$STUB_LOG"
+
+new_case
+printf 'GHCR_OWNER=test\n' >"$SHOP/image-pin.env"
+run_deploy "$SHA_NEW"
+expect "pin: a pin file without BACKEND_IMAGE_REPO refuses" \
+  bash -c '[[ $0 == 1 ]] && ! grep -q "pull" "$1"' "$RC" "$STUB_LOG"
+
+new_case
+printf 'BACKEND_IMAGE_REPO=ghcr.io/test/azira-backend-other\n' >"$SHOP/image-pin.env"
+run_deploy "$SHA_NEW"
+expect "pin: a repository that only starts the same is refused" \
+  bash -c '[[ $0 == 1 ]] && ! grep -q "pull" "$1"' "$RC" "$STUB_LOG"
+
+# --- deploy.sh: redis and the tunnel follow their settings files ------------------
+new_case
+run_deploy "$SHA_NEW"
+expect "services: unchanged settings -> --no-recreate, nothing forced" \
+  bash -c '[[ $0 == 0 ]] && grep -q -- "--no-recreate redis cloudflared" "$1" && ! grep -q -- "--force-recreate" "$1"' "$RC" "$STUB_LOG"
+
+new_case
+printf 'REDIS_PASSWORD=rotated\n' >"$SHOP/redis.env"
+run_deploy "$SHA_NEW"
+expect "services: a rotated redis.env recreates redis only" \
+  bash -c '[[ $0 == 0 ]] && grep -q -- "--force-recreate redis$" "$1" && grep -q -- "--no-recreate cloudflared$" "$1"' "$RC" "$STUB_LOG"
+expect "services: the new hash is recorded, so the next deploy leaves redis alone" bash -c '
+  grep -qx "redis $(sha256sum "$0/redis.env" | cut -d" " -f1)" "$0/service-env.sha256"' "$SHOP"
+: >"$STUB_LOG"
+run_deploy "$SHA_NEW"
+expect "services: a second deploy does not recreate again" \
+  bash -c '[[ $0 == 0 ]] && ! grep -q -- "--force-recreate" "$1"' "$RC" "$STUB_LOG"
+
+new_case
+printf 'TUNNEL_TOKEN=rotated\n' >"$SHOP/tunnel.env"
+run_deploy "$SHA_NEW"
+expect "services: a rotated tunnel.env recreates cloudflared only" \
+  bash -c '[[ $0 == 0 ]] && grep -q -- "--force-recreate cloudflared$" "$1" && grep -q -- "--no-recreate redis$" "$1"' "$RC" "$STUB_LOG"
+
+new_case
+rm "$SHOP/service-env.sha256"
+run_deploy "$SHA_NEW"
+expect "services: no recorded hashes (first deploy) -> both are (re)created" \
+  bash -c '[[ $0 == 0 ]] && grep -q -- "--force-recreate redis cloudflared$" "$1"' "$RC" "$STUB_LOG"
+
+new_case
+printf 'REDIS_PASSWORD=rotated\n' >"$SHOP/redis.env"
+export STUB_FAIL_SERVICES=1
+run_deploy "$SHA_NEW"
+expect "services: a failed recreate stops the deploy, hash not recorded, no migrate" \
+  bash -c '[[ $0 == 1 && $1 == *"new settings"* ]] && ! grep -q migrate "$2" && ! grep -q "$(sha256sum "$3/redis.env" | cut -d" " -f1)" "$3/service-env.sha256"' "$RC" "$OUT" "$STUB_LOG" "$SHOP"
+
+new_case
+echo "$SHA_B" >"$SHOP/current_tag"
+printf 'REDIS_PASSWORD=rotated\n' >"$SHOP/redis.env"
+export STUB_UNHEALTHY="$SHA_NEW"
+run_deploy "$SHA_NEW"
+expect "services: rollback still works after a redis rotation" \
+  bash -c '[[ $0 == 1 && $1 == *"rolled back"* && $(cat "$2") == "$3" ]]' "$RC" "$OUT" "$SHOP/current_tag" "$SHA_B"
+export -n STUB_UNHEALTHY; unset STUB_UNHEALTHY
+
+# The redis health check really authenticates: a server with a password answers
+# the check as healthy only with the right REDIS_PASSWORD in the environment.
+if command -v redis-server >/dev/null 2>&1 && command -v redis-cli >/dev/null 2>&1; then
+  RPORT=$((20000 + RANDOM % 20000))
+  hc=$(sed -n 's/^ *test: \["CMD-SHELL", "\(REDISCLI_AUTH=.*\)"\]$/\1/p' "$HERE/../../compose/docker-compose.prod.yml" | head -1)
+  hc=${hc//\\\"/\"}
+  hc=${hc//\$\$/\$}
+  hc=${hc//-h 127.0.0.1/-h 127.0.0.1 -p $RPORT}
+  redis-server --port "$RPORT" --bind 127.0.0.1 --requirepass pw12345 --save "" --appendonly no --daemonize no >"$WORK/redis.log" 2>&1 &
+  RPID=$!
+  for _ in 1 2 3 4 5 6 7 8 9 10; do redis-cli -p "$RPORT" ping >/dev/null 2>&1 && break; sleep 0.3; done
+  check "redis healthcheck: right password is healthy" env REDIS_PASSWORD=pw12345 sh -c "$hc"
+  check "redis healthcheck: wrong password is unhealthy" bash -c '! env REDIS_PASSWORD=nope sh -c "$0"' "$hc"
+  check "redis healthcheck: no password (NOAUTH) is unhealthy" bash -c '! env -u REDIS_PASSWORD sh -c "$0"' "$hc"
+  kill "$RPID" 2>/dev/null || true
+  wait "$RPID" 2>/dev/null || true
+else
+  echo "skip  redis healthcheck test (redis-server not installed)"
+fi
+
 # --- deploy.sh: health check and rollback ----------------------------------
 new_case
 echo "$SHA_B" >"$SHOP/current_tag"
@@ -429,6 +532,8 @@ new_env_case() {
     -e "s#^DOCKER_CONFIG=.*#DOCKER_CONFIG=$CASE/docker-config#" -e "s#^PATH=.*#PATH=$STUBS:/usr/bin:/bin#" \
     "$APPLY_SH" >"$CASE/apply-env.sh"
   grep -qx "SHOP_DIR=$ESHOP" "$CASE/apply-env.sh" || { echo "could not patch apply-env.sh" >&2; exit 1; }
+  # The pin the bootstrap writes: the good payload's image and registry user.
+  printf 'BACKEND_IMAGE_REPO=ghcr.io/azira-owner/azira-backend\nGHCR_OWNER=azira-owner\n' >"$ESHOP/image-pin.env"
 }
 # run_env <payload>: sets OUT and RC
 run_env() {
@@ -437,7 +542,14 @@ run_env() {
   RC=$?
   set -e
 }
-nothing_written() { [[ -z $(ls -A "$ESHOP" 2>/dev/null | grep -v '^deploy.lock$' || true) ]]; }
+nothing_written() {
+  local f
+  for f in "$ESHOP"/* "$ESHOP"/.[!.]*; do
+    [[ -e $f ]] || continue
+    case ${f##*/} in deploy.lock | image-pin.env) ;; *) return 1 ;; esac
+  done
+  return 0
+}
 mode_of() { stat -c '%a' "$1"; }
 
 new_env_case
@@ -512,12 +624,76 @@ refuse_env "a REDIS_URL pointing elsewhere" "$(good_payload | sed 's#^REDIS_URL=
 refuse_env "a short redis password" "$(good_payload | sed 's/^REDIS_PASSWORD=.*/REDIS_PASSWORD=short/')" "REDIS_PASSWORD"
 refuse_env "a non-https image host" "$(good_payload | sed 's#^BACKEND_IMAGE=.*#BACKEND_IMAGE=evil.example/x/y#')" "BACKEND_IMAGE"
 refuse_env "an image with a tag" "$(good_payload | sed 's#^BACKEND_IMAGE=.*#BACKEND_IMAGE=ghcr.io/Azira-Owner/azira-backend:latest#')" "BACKEND_IMAGE"
+refuse_env "an image from another owner" "$(good_payload | sed 's#^BACKEND_IMAGE=.*#BACKEND_IMAGE=ghcr.io/evil/azira-backend#')" "BACKEND_IMAGE"
+refuse_env "another image name under the same owner" "$(good_payload | sed 's#^BACKEND_IMAGE=.*#BACKEND_IMAGE=ghcr.io/azira-owner/other#')" "BACKEND_IMAGE"
+refuse_env "the pinned name as a prefix of another" "$(good_payload | sed 's#^BACKEND_IMAGE=.*#BACKEND_IMAGE=ghcr.io/azira-owner/azira-backend-x#')" "BACKEND_IMAGE"
+refuse_env "a GHCR_USER that is not the pinned owner" "$(good_payload | sed 's/^GHCR_USER=.*/GHCR_USER=someone-else/')" "GHCR_USER"
+refuse_env "CHECKOUT_PAUSED with a wrong value" "$(good_payload)
+CHECKOUT_PAUSED=yes" "CHECKOUT_PAUSED"
+refuse_env "no Stripe key and not paused" "$(good_payload | grep -v '^STRIPE_API_KEY=')" "STRIPE_API_KEY"
+refuse_env "CHECKOUT_PAUSED=false without Stripe" "$(good_payload | grep -v '^STRIPE_')
+CHECKOUT_PAUSED=false" "STRIPE_API_KEY"
+refuse_env "no Resend key and not paused" "$(good_payload | grep -v '^RESEND_API_KEY=')" "RESEND_API_KEY"
+refuse_env "console email and not paused" "$(good_payload | sed 's/^EMAIL_TRANSPORT=.*/EMAIL_TRANSPORT=console/')" "EMAIL_TRANSPORT"
+refuse_env "paused with a half-set Stripe pair" "$(good_payload | grep -v '^STRIPE_WEBHOOK_SECRET=')
+CHECKOUT_PAUSED=true" "STRIPE_WEBHOOK_SECRET"
+refuse_env "paused with an email transport that is neither resend nor console" "$(good_payload | sed 's/^EMAIL_TRANSPORT=.*/EMAIL_TRANSPORT=smtp/')
+CHECKOUT_PAUSED=true" "EMAIL_TRANSPORT"
+refuse_env "paused with resend but no Resend key" "$(good_payload | grep -v -e '^RESEND_API_KEY=' -e '^STRIPE_')
+CHECKOUT_PAUSED=true" "RESEND_API_KEY"
 refuse_env "a CA that is not base64" "$(good_payload | sed 's#^DB_CA_CERT_B64=.*#DB_CA_CERT_B64=!!!notbase64!!!#')" "DB_CA_CERT_B64"
 refuse_env "a CA that is not a certificate" "$(good_payload | sed "s#^DB_CA_CERT_B64=.*#DB_CA_CERT_B64=$(printf 'hello' | base64)#")" "DB_CA_CERT_B64"
 refuse_env "a bad tunnel token" "$(good_payload | sed 's/^TUNNEL_TOKEN=.*/TUNNEL_TOKEN=short/')" "TUNNEL_TOKEN"
 refuse_env "a GHCR_TOKEN without a user" "$(good_payload | grep -v '^GHCR_USER=')" "GHCR_USER"
 refuse_env "too many lines" "$(good_payload; for i in $(seq 1 130); do echo "X$i=1"; done)"
 refuse_env "an oversized payload" "$(good_payload; head -c 70000 /dev/zero | tr '\0' 'a')"
+
+# No pin file: nothing is accepted.
+new_env_case
+rm "$ESHOP/image-pin.env"
+run_env "$(good_payload)"
+expect "apply-env refuses when the pin file is missing" \
+  bash -c '[[ $0 == 1 && $1 == *"image-pin.env"* ]]' "$RC" "$OUT"
+expect "apply-env wrote nothing without a pin file" nothing_written
+
+# The registry user is compared in lower case (GitHub's owner name is Thisuranr).
+new_env_case
+run_env "$(good_payload | sed 's/^GHCR_USER=.*/GHCR_USER=Azira-Owner/')"
+expect "apply-env: GHCR_USER matches the pinned owner in any letter case" bash -c '[[ $0 == 0 ]]' "$RC"
+
+# Preview mode: no Stripe, no Resend.
+new_env_case
+run_env "$(good_payload | grep -v -e '^STRIPE_' -e '^RESEND_API_KEY=' | sed 's/^EMAIL_TRANSPORT=.*/EMAIL_TRANSPORT=console/')
+CHECKOUT_PAUSED=true"
+expect "apply-env: CHECKOUT_PAUSED=true accepts no Stripe keys, no Resend key and console email" \
+  bash -c '[[ $0 == 0 ]] && grep -qx "CHECKOUT_PAUSED=true" "$1/.env" && grep -qx "EMAIL_TRANSPORT=console" "$1/.env" && ! grep -q -e STRIPE -e RESEND "$1/.env"' "$RC" "$ESHOP"
+new_env_case
+run_env "$(good_payload)
+CHECKOUT_PAUSED=true"
+expect "apply-env: CHECKOUT_PAUSED=true with Stripe and Resend present also works" \
+  bash -c '[[ $0 == 0 ]] && grep -q "^STRIPE_API_KEY=" "$1/.env"' "$RC" "$ESHOP"
+new_env_case
+run_env "$(good_payload)
+CHECKOUT_PAUSED=false"
+expect "apply-env: CHECKOUT_PAUSED=false with everything present works" \
+  bash -c '[[ $0 == 0 ]] && grep -qx "CHECKOUT_PAUSED=false" "$1/.env"' "$RC" "$ESHOP"
+
+# Atomic set: if the last file cannot be staged, none of the others is replaced.
+new_env_case
+run_env "$(good_payload)"
+before_env=$(cat "$ESHOP/.env")
+before_redis=$(cat "$ESHOP/redis.env")
+mkdir -p "$CASE/mkstub"
+cat >"$CASE/mkstub/mktemp" <<'MK'
+#!/bin/sh
+case "$*" in *compose/.env*) echo "mktemp: simulated failure" >&2; exit 1 ;; esac
+exec /usr/bin/mktemp "$@"
+MK
+chmod +x "$CASE/mkstub/mktemp"
+sed -i "s#^PATH=.*#PATH=$CASE/mkstub:$STUBS:/usr/bin:/bin#" "$CASE/apply-env.sh"
+run_env "$(good_payload | sed 's/^STORE_NAME=.*/STORE_NAME=Other/; s/^REDIS_PASSWORD=.*/REDIS_PASSWORD=zzzzzzzzzzzzzzzzzzzzzzzz9999/; s#^REDIS_URL=.*#REDIS_URL=redis://:zzzzzzzzzzzzzzzzzzzzzzzz9999@redis:6379#')"
+expect "apply-env: a failure while staging leaves .env and redis.env as they were" \
+  bash -c '[[ $0 != 0 && $(cat "$1/.env") == "$2" && $(cat "$1/redis.env") == "$3" ]] && ! ls "$1"/.env.* "$1"/redis.env.* >/dev/null 2>&1' "$RC" "$ESHOP" "$before_env" "$before_redis"
 
 # A refused payload leaves an earlier good setup untouched.
 new_env_case

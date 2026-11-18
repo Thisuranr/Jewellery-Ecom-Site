@@ -24,4 +24,16 @@ describe("configWarnings", () => {
     expect(w.join(" ")).toContain("STOREFRONT_URL")
     expect(w.join(" ")).toContain("STRIPE")
   })
+  it("warns loudly at boot in preview mode, and does not nag about missing Stripe keys then", () => {
+    const env = { NODE_ENV: "production", ...good, CHECKOUT_PAUSED: "true", STRIPE_API_KEY: "", STRIPE_WEBHOOK_SECRET: "" } as NodeJS.ProcessEnv
+    const w = configWarnings(env)
+    expect(w).toHaveLength(1)
+    expect(w[0]).toContain("PREVIEW MODE")
+    expect(w[0]).toContain("CHECKOUT_PAUSED=true")
+  })
+  it("has no preview-mode warning when CHECKOUT_PAUSED is not true", () => {
+    for (const value of [undefined, "false", ""]) {
+      expect(configWarnings({ NODE_ENV: "production", ...good, CHECKOUT_PAUSED: value } as NodeJS.ProcessEnv)).toEqual([])
+    }
+  })
 })

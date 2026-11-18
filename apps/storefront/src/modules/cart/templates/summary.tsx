@@ -4,6 +4,8 @@ import CartTotals from "@modules/common/components/cart-totals"
 import DiscountCode from "@modules/checkout/components/discount-code"
 import LocalizedClientLink from "@modules/common/components/localized-client-link"
 import { HttpTypes } from "@medusajs/types"
+import CheckoutPausedNote from "@modules/checkout/components/checkout-paused-note"
+import { CHECKOUT_PAUSED } from "@lib/checkout-paused"
 
 type SummaryProps = {
   cart: HttpTypes.StoreCart
@@ -29,16 +31,22 @@ const Summary = ({ cart }: SummaryProps) => {
       </h2>
       <DiscountCode cart={cart} />
       <CartTotals totals={cart} />
-      <LocalizedClientLink
-        href={"/checkout?step=" + step}
-        className="btn-solid w-full"
-        data-testid="checkout-button"
-      >
-        Go to checkout
-      </LocalizedClientLink>
-      <p className="text-center text-[12px] font-light text-muted">
-        Secure checkout. 30-day returns.
-      </p>
+      {CHECKOUT_PAUSED ? (
+        <CheckoutPausedNote />
+      ) : (
+        <>
+          <LocalizedClientLink
+            href={"/checkout?step=" + step}
+            className="btn-solid w-full"
+            data-testid="checkout-button"
+          >
+            Go to checkout
+          </LocalizedClientLink>
+          <p className="text-center text-[12px] font-light text-muted">
+            Secure checkout. 30-day returns.
+          </p>
+        </>
+      )}
     </div>
   )
 }

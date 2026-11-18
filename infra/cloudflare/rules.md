@@ -5,7 +5,7 @@ Everything in this file is entered in the Cloudflare dashboard (by the owner, or
 - **Plan:** Cloudflare Free for the zone. Limits that shape the rules (Cloudflare docs, as checked for the earlier store: re-check the limits): 5 custom rules, **1** rate limiting rule, no regular expressions in custom rules, and rate limiting expressions limited to the Path and Verified Bot fields.
 - **Placeholder:** `<domain>` is `azira.com.au`.
 - **Dashboard names move.** If a menu is not where this file says, use the dashboard search box with the quoted name.
-- **The expressions are the contract.** Paste them exactly. (The earlier store replayed test requests against them with a lint script; it was not ported. Section 6 has the curl tests instead.)
+- **The expressions are the contract.** Paste them exactly. `node infra/cloudflare/lint-rules.mjs` parses every expression here and replays test requests against it (including URL normalization); it must pass after any edit to this file. Section 6 has the curl tests for the live zone.
 
 ## 1. Zone settings [You]
 
@@ -48,19 +48,19 @@ http.host eq "api.<domain>" and http.request.uri.path eq "/hooks/payment/stripe_
 
 ### Rule B: `block-admin-paths-on-api`
 
-The admin dashboard and the staff auth routes live on `admin.<domain>` only. On the API host they are blocked. Medusa's router ignores letter case, so the path is lower-cased before it is compared; matching is by prefix, so `/app/x`, `/admin/users/me` and `/auth/user/emailpass` are all covered.
+The admin dashboard and the staff auth routes live on `admin.<domain>` only. On the API host they are blocked. Medusa's router ignores letter case, so the path is lower-cased before it is compared; matching is by prefix, so `/app/x`, `/admin/users/me`, `/auth/user/emailpass` and `/auth/mfa/factors` (staff two-step sign-in) are all covered.
 
 ```cf-expr rule=block-admin-paths-on-api
-http.host eq "api.<domain>" and (starts_with(lower(http.request.uri.path), "/app") or starts_with(lower(http.request.uri.path), "/admin") or starts_with(lower(http.request.uri.path), "/auth/user") or starts_with(lower(http.request.uri.path), "/auth/session"))
+http.host eq "api.<domain>" and (starts_with(lower(http.request.uri.path), "/app") or starts_with(lower(http.request.uri.path), "/admin") or starts_with(lower(http.request.uri.path), "/auth/user") or starts_with(lower(http.request.uri.path), "/auth/session") or starts_with(lower(http.request.uri.path), "/auth/mfa"))
 ```
 
 - **Action:** Block.
-- The storefront signs customers in through `/auth/customer/...` and keeps a JWT, so nothing legitimate on `api.` uses the blocked paths. If the storefront ever switches to session auth, revisit rule B first.
+- The storefront signs customers in through `/auth/customer/...` and keeps a JWT, so nothing legitimate on `api.` uses the blocked paths. `/auth/verification/...` (customer email verification, used by the storefront's verify-account page) and `/auth/token/refresh` are deliberately **not** blocked. If the storefront ever switches to session auth, revisit rule B first.
 - The admin dashboard at `admin.<domain>` reaches `/admin/...` and `/auth/user/...` on its own host, which is not affected.
 
-## 3. Rate limiting rule (the one free rule) [You]
+## 3. Rate limiting rules [You]
 
-Dashboard: **Security → Security rules → Create rule → Rate limiting rules**.
+Dashboard: **Security → Security rules → Create rule → Rate limiting rules**. The Free plan allows **one** rate limiting rule. This file defines two expressions. On the Free plan create **one** rule whose expression is the two below joined with `or` (the joined line is under the blocks); on a paid plan create them as two rules, and tighten the admin one (for example 5 requests per minute).
 
 ```cf-expr rule=account-flood-guard
 http.request.uri.path contains "/account"
@@ -70,7 +70,20 @@ http.request.uri.path contains "/account"
 - **Expression:** the line above, built with the builder as Field **URI Path**, Operator **contains**, Value `/account`. The Free plan offers only the Path and Verified Bot fields, so the plan's `http.host eq "www.<domain>"` clause cannot be used. No Medusa route on `api.` or `admin.` contains `/account`, so nothing else is counted.
 - **Characteristics:** IP (the only Free option). **Requests:** 20 **per** 10 seconds (the only Free period).
 - **Action:** Block. **Duration:** 10 seconds (the only Free value).
-- **What it is:** a flood guard for the account pages, not brute-force protection. Sign-in brute-force protection is a separate job.
+- **What it is:** a flood guard for the account pages, not brute-force protection.
+
+```cf-expr rule=admin-login-guard
+lower(http.request.uri.path) eq "/auth/user/emailpass"
+```
+
+- **Name:** `admin-login-guard`.
+- **What it covers:** the staff login (`/auth/user/emailpass`, Medusa matches it without regard to letter case, hence `lower()`). Both `admin.<domain>` (where staff sign in) and `api.<domain>` (where rule B already blocks it) are covered, because the Free plan's rate limit expression cannot test the host. Customers sign in at `/auth/customer/emailpass`, which this does not touch.
+- **Characteristics / action:** same as above (IP; Free: 20 per 10 seconds, Block 10 seconds). It slows password guessing behind Cloudflare Access (`access.md`, mandatory); it is a second layer, not a replacement for Access. If the dashboard's expression editor rejects `lower()` in a rate limit on the Free plan, use the builder with Field **URI Path**, Operator **equals**, Value `/auth/user/emailpass` and add the capitalised variants you care about.
+- **Free plan, one rule:** use this single expression (named `login-and-account-guard`):
+
+```
+http.request.uri.path contains "/account" or lower(http.request.uri.path) eq "/auth/user/emailpass"
+```
 
 ## 4. Contingency rule C1 (create only if the trigger happens)
 
@@ -118,6 +131,8 @@ curl -s -I "https://admin.$D/app" | grep -i -E '^(HTTP|location)'
 curl -s -I "https://admin.$D/admin/users/me" | grep -i -E '^(HTTP|location)'
 # Rate limit: the first ~20 answer normally, the rest 429
 for i in $(seq 1 30); do curl -s -o /dev/null -w '%{http_code} ' "https://www.$D/au/account"; done; echo
+# Admin login limit (behind Access you will get 302s; test it from a request that carries the Access cookie or before Access is on a staging host)
+for i in $(seq 1 30); do curl -s -o /dev/null -w '%{http_code} ' -X POST -H 'content-type: application/json' -d '{}' "https://admin.$D/auth/user/emailpass"; done; echo
 ```
 
 Then open **Security → Events** and check that the blocked requests show rule B and that a Stripe test webhook (Stripe dashboard > Webhooks > Send test event) shows a **Skip** event for rule A and no challenge.

@@ -3,13 +3,13 @@
 #
 # Installed as /opt/azira/bin/deploy-gate.sh (root:root, 0755; /opt/azira and
 # /opt/azira/bin are root 0755, so `deploy` can run it but not change it).
-# ~deploy/.ssh/authorized_keys holds one line for the GitHub Actions key:
-#   restrict,command="/opt/azira/bin/deploy-gate.sh" ssh-ed25519 AAAA... gha-deploy
-# (`restrict` turns off port, agent and X11 forwarding, the pty and ~/.ssh/rc;
-# on OpenSSH older than 7.2 spell them out: no-port-forwarding,
-# no-agent-forwarding,no-X11-forwarding,no-pty.)
-# /etc/sudoers.d/deploy lets `deploy` run deploy.sh only:
-#   deploy ALL=(root) NOPASSWD: /opt/azira/bin/deploy.sh
+# ~deploy/.ssh/authorized_keys (root-owned, written by infra/vps/bootstrap.sh)
+# holds one line for the GitHub Actions key:
+#   command="/opt/azira/bin/deploy-gate.sh",no-port-forwarding,no-agent-forwarding,no-X11-forwarding,no-pty,no-user-rc ssh-ed25519 AAAA... azira-github-deploy
+# /etc/sudoers.d/deploy lets `deploy` run these two scripts only:
+#   deploy ALL=(root) NOPASSWD: /opt/azira/bin/deploy.sh, /opt/azira/bin/apply-env.sh
+# Both scripts also refuse any image other than the one pinned in
+# /opt/azira/image-pin.env (root-owned), so this key cannot run another image.
 #
 # Whatever the client asked for arrives in SSH_ORIGINAL_COMMAND. Only three
 # requests are accepted, and nothing from the request is passed on except the sha:

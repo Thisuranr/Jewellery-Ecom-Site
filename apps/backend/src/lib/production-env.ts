@@ -1,6 +1,7 @@
 import { MedusaError } from "@medusajs/framework/utils"
 import { emailProviderOptionsFromEnv } from "./email-config"
 import { isMailbox } from "../modules/email/lib/address"
+import { isCheckoutPaused } from "./checkout-paused"
 
 /**
  * Production config fails closed.
@@ -11,6 +12,11 @@ import { isMailbox } from "../modules/email/lib/address"
  * connects. Only `medusa build` is skipped: it runs in CI and in the Docker build
  * stage without secrets. Every failure is listed in one error that names
  * variables, never values. Development and test runs are not affected.
+ *
+ * Preview mode: CHECKOUT_PAUSED=true (exactly) lets Stripe keys be absent and
+ * EMAIL_TRANSPORT be console, so the site can be shown before Stripe and Resend
+ * exist (the checkout routes are refused, see checkout-paused.ts). Everything
+ * else stays required. With any other value Stripe and Resend are required.
  *
  * Production means what Medusa means by it: NODE_ENV "production" or "prod"
  * (@medusajs/utils/dist/common/is-production.js), which is also what makes the
@@ -163,14 +169,26 @@ export function productionEnvFailures(env: NodeJS.ProcessEnv): string[] {
     }
   }
 
-  // Payments: Stripe. Placeholders such as sk_test_placeholder are refused.
-  const stripeKey = env.STRIPE_API_KEY?.trim()
-  if (!stripeKey || isPlaceholder(stripeKey) || !/^(sk|rk)_(live|test)_[A-Za-z0-9]{8,}$/.test(stripeKey)) {
-    failures.push("STRIPE_API_KEY must be a real Stripe secret key (sk_live_... or rk_live_...), not empty or a placeholder")
+  // Preview mode flag: exactly true or false (or unset). Anything else is a typo
+  // that would otherwise leave a shop open (or closed) by accident.
+  const flag = env.CHECKOUT_PAUSED
+  if (!blank(flag) && flag !== "true" && flag !== "false") {
+    failures.push('CHECKOUT_PAUSED must be exactly "true" (payments paused, preview) or "false"')
   }
+  const paused = isCheckoutPaused(env)
+
+  // Payments: Stripe. Placeholders such as sk_test_placeholder are refused. In
+  // preview mode both keys may be absent (empty), but a half-set pair or a
+  // placeholder is still refused.
+  const stripeKey = env.STRIPE_API_KEY?.trim()
   const webhookSecret = env.STRIPE_WEBHOOK_SECRET?.trim()
-  if (!webhookSecret || isPlaceholder(webhookSecret) || !/^whsec_[A-Za-z0-9]{8,}$/.test(webhookSecret)) {
-    failures.push("STRIPE_WEBHOOK_SECRET must be the webhook endpoint's signing secret (whsec_...), not empty or a placeholder")
+  if (!(paused && blank(stripeKey) && blank(webhookSecret))) {
+    if (!stripeKey || isPlaceholder(stripeKey) || !/^(sk|rk)_(live|test)_[A-Za-z0-9]{8,}$/.test(stripeKey)) {
+      failures.push("STRIPE_API_KEY must be a real Stripe secret key (sk_live_... or rk_live_...), not empty or a placeholder")
+    }
+    if (!webhookSecret || isPlaceholder(webhookSecret) || !/^whsec_[A-Za-z0-9]{8,}$/.test(webhookSecret)) {
+      failures.push("STRIPE_WEBHOOK_SECRET must be the webhook endpoint's signing secret (whsec_...), not empty or a placeholder")
+    }
   }
 
   // Files: Cloudflare R2 through the S3 provider.
@@ -190,15 +208,20 @@ export function productionEnvFailures(env: NodeJS.ProcessEnv): string[] {
     }
   }
 
-  // Email: Resend. A log-only transport reaches no customer.
+  // Email: Resend. A log-only transport reaches no customer, so it is only
+  // allowed in preview mode (no orders exist then).
   const email = emailProviderOptionsFromEnv(env)
-  if (email.transport !== "resend") {
+  const transportOk = email.transport === "resend" || (paused && email.transport === "console")
+  if (!transportOk) {
     failures.push(
-      'EMAIL_TRANSPORT must be "resend" in production (a log-only transport sends nothing, ' +
-        "so password resets and order emails never arrive)"
+      paused
+        ? 'EMAIL_TRANSPORT must be "resend" or "console" (preview mode)'
+        : 'EMAIL_TRANSPORT must be "resend" in production (a log-only transport sends nothing, ' +
+            "so password resets and order emails never arrive)"
     )
   }
-  if (!email.api_key || isPlaceholder(email.api_key)) {
+  const needsResendKey = !paused || email.transport === "resend"
+  if (needsResendKey && (!email.api_key || isPlaceholder(email.api_key))) {
     failures.push("RESEND_API_KEY must be set (production sends email through Resend)")
   }
   if (!email.from || !isMailbox(email.from) || EXAMPLE_DOMAIN.test(email.from)) {

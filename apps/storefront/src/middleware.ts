@@ -1,5 +1,6 @@
 import { HttpTypes } from "@medusajs/types"
 import { NextRequest, NextResponse } from "next/server"
+import { redirectWwwToApex } from "@lib/util/www-redirect"
 
 const BACKEND_URL = process.env.NEXT_PUBLIC_MEDUSA_BACKEND_URL
 const PUBLISHABLE_API_KEY = process.env.NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY
@@ -88,6 +89,16 @@ async function getCountryCode(
  * Middleware to handle region selection and onboarding status.
  */
 export async function middleware(request: NextRequest) {
+  // www.azira.com.au/* -> https://azira.com.au/* (permanent). Done here because the
+  // Cloudflare token cannot create zone redirect rules. Runs first, before any backend call.
+  const wwwRedirect = redirectWwwToApex(
+    request.nextUrl,
+    request.headers.get("x-forwarded-host") ?? request.headers.get("host")
+  )
+  if (wwwRedirect) {
+    return NextResponse.redirect(wwwRedirect, 301)
+  }
+
   if (request.nextUrl.pathname.includes(".")) {
     return NextResponse.next()
   }

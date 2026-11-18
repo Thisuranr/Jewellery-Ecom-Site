@@ -44,6 +44,13 @@
 #                       Default /root/.ssh/authorized_keys (the key DigitalOcean installed)
 #   DEPLOY_SSH_PUBKEY   required: the CI deploy key's PUBLIC key, text or file path
 #                       (the private half goes to the GitHub secret DEPLOY_SSH_KEY)
+#   BACKEND_IMAGE_REPO  the ONLY image repository deploys may run, default
+#                       ghcr.io/thisuranr/azira-backend (lowercase, no tag). Written to
+#                       /opt/azira/image-pin.env (root:root 0644); apply-env.sh and
+#                       deploy.sh refuse any other image, so the deploy key cannot run
+#                       somebody else's image.
+#   GHCR_OWNER          the only GHCR login user apply-env.sh accepts, default
+#                       thisuranr (the GitHub owner's name is Thisuranr; compared lowercase)
 #   TIMEZONE            default Australia/Sydney
 #   SWAP_SIZE           default 2G
 #   BOOTSTRAP_DRY_RUN=1 print every action, change nothing (works without root)
@@ -67,6 +74,8 @@ ADMIN_USER="${ADMIN_USER:-}"
 ADMIN_SSH_PUBKEY_GIVEN="${ADMIN_SSH_PUBKEY:-}"
 ADMIN_SSH_PUBKEY="${ADMIN_SSH_PUBKEY:-/root/.ssh/authorized_keys}"
 DEPLOY_SSH_PUBKEY="${DEPLOY_SSH_PUBKEY:-}"
+BACKEND_IMAGE_REPO="${BACKEND_IMAGE_REPO:-ghcr.io/thisuranr/azira-backend}"
+GHCR_OWNER="${GHCR_OWNER:-thisuranr}"
 TIMEZONE="${TIMEZONE:-Australia/Sydney}"
 SWAP_SIZE="${SWAP_SIZE:-2G}"
 # cloud-init runs this while the first-boot apt jobs may still hold the lock.
@@ -376,6 +385,13 @@ step_install_files() {
   install_if_present "${REPO_ROOT}/infra/deploy/apply-env.sh" "${SHOP_DIR}/bin/apply-env.sh" 0755
   install_if_present "${REPO_ROOT}/infra/backup/backup.sh" "${SHOP_DIR}/bin/backup.sh" 0755
   install_if_present "${REPO_ROOT}/infra/backup/restore.sh" "${SHOP_DIR}/bin/restore.sh" 0755
+  # The pin: the one image repository and GHCR user the server will accept.
+  # Root-owned, so the deploy user (and its key) cannot change it.
+  [[ ${BACKEND_IMAGE_REPO} =~ ^ghcr\.io/[a-z0-9][a-z0-9._-]*/[a-z0-9][a-z0-9._/-]*$ ]] ||
+    die "BACKEND_IMAGE_REPO must be a lowercase ghcr.io/<owner>/<name> reference without a tag"
+  [[ ${GHCR_OWNER} =~ ^[a-z0-9][a-z0-9-]{0,38}$ ]] || die "GHCR_OWNER must be a lowercase GitHub user name"
+  write_text "${SHOP_DIR}/image-pin.env" 0644 root:root <<<"BACKEND_IMAGE_REPO=${BACKEND_IMAGE_REPO}
+GHCR_OWNER=${GHCR_OWNER}"
   # deploy.sh reads the stack from ${SHOP_DIR}/compose. Its non-secret .env
   # (BACKEND_IMAGE) is written by apply-env.sh on every deploy.
   install_if_present "${REPO_ROOT}/infra/compose/docker-compose.prod.yml" "${SHOP_DIR}/compose/docker-compose.prod.yml" 0644
@@ -510,7 +526,7 @@ do_check() {
   # /opt/azira owners and modes ("mode uid:gid"). Files that do not exist yet are skipped.
   expect_eq "${SHOP_DIR}" "755 0:0" "$(stat -c '%a %u:%g' "${SHOP_DIR}" 2>/dev/null || echo missing)"
   expect_eq "${SHOP_DIR}/bin" "755 0:0" "$(stat -c '%a %u:%g' "${SHOP_DIR}/bin" 2>/dev/null || echo missing)"
-  for spec in ".env|600 0:0" "redis.env|600 0:0" "tunnel.env|600 0:0" "backup.env|600 0:0" "certs/supabase-ca.crt|644 0:0"; do
+  for spec in ".env|600 0:0" "redis.env|600 0:0" "tunnel.env|600 0:0" "backup.env|600 0:0" "certs/supabase-ca.crt|644 0:0" "image-pin.env|644 0:0"; do
     f="${spec%%|*}"
     want="${spec##*|}"
     if [ -e "${SHOP_DIR}/${f}" ]; then

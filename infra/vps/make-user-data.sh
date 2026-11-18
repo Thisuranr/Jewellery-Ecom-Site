@@ -6,6 +6,10 @@
 #   DEPLOY_SSH_PUBKEY="ssh-ed25519 AAAA... azira-github-deploy" \
 #     bash infra/vps/make-user-data.sh > user-data.sh
 #
+# Optional inputs (defaults are Azira's): BACKEND_IMAGE_REPO (default
+# ghcr.io/thisuranr/azira-backend) and GHCR_OWNER (default thisuranr). They are
+# the pin written to /opt/azira/image-pin.env: the only image the droplet will run.
+#
 # Each of the three may also be a path to a file holding the public key. The
 # result is ONE self-contained shell script (cloud-init runs a user-data that
 # starts with #!/bin/bash): the three inputs sit at its top, and below them the
@@ -55,6 +59,11 @@ admin_keys=$(key_text "${ADMIN_SSH_PUBKEY:-}") || die "set ADMIN_SSH_PUBKEY (the
 deploy_keys=$(key_text "${DEPLOY_SSH_PUBKEY:-}") || die "set DEPLOY_SSH_PUBKEY (the CI deploy key's public half, text or file)"
 [[ $(printf '%s\n' "$deploy_keys" | wc -l) -eq 1 ]] || die "DEPLOY_SSH_PUBKEY must hold exactly one key"
 
+BACKEND_IMAGE_REPO=${BACKEND_IMAGE_REPO:-ghcr.io/thisuranr/azira-backend}
+GHCR_OWNER=${GHCR_OWNER:-thisuranr}
+[[ $BACKEND_IMAGE_REPO =~ ^ghcr\.io/[a-z0-9][a-z0-9._-]*/[a-z0-9][a-z0-9._/-]*$ ]] || die "BACKEND_IMAGE_REPO must be a lowercase ghcr.io/<owner>/<name> reference without a tag"
+[[ $GHCR_OWNER =~ ^[a-z0-9][a-z0-9-]{0,38}$ ]] || die "GHCR_OWNER must be a lowercase GitHub user name"
+
 for f in vps/bootstrap.sh deploy/deploy.sh deploy/deploy-gate.sh deploy/apply-env.sh backup/backup.sh backup/restore.sh compose/docker-compose.prod.yml; do
   [[ -f $REPO_ROOT/infra/$f ]] || die "missing infra/$f"
 done
@@ -76,11 +85,14 @@ out=$(
 ADMIN_USER='${ADMIN_USER}'
 ADMIN_SSH_PUBKEY='${admin_keys%$'\n'}'
 DEPLOY_SSH_PUBKEY='${deploy_keys%$'\n'}'
+# The only image the droplet will run, and the only registry login it accepts.
+BACKEND_IMAGE_REPO='${BACKEND_IMAGE_REPO}'
+GHCR_OWNER='${GHCR_OWNER}'
 # ---------------------------------------------------------------------------
 set -euo pipefail
 exec > >(tee -a /var/log/azira-bootstrap.log) 2>&1
 echo "azira bootstrap: start \$(date -u +%FT%TZ)"
-export ADMIN_USER ADMIN_SSH_PUBKEY DEPLOY_SSH_PUBKEY
+export ADMIN_USER ADMIN_SSH_PUBKEY DEPLOY_SSH_PUBKEY BACKEND_IMAGE_REPO GHCR_OWNER
 export DEBIAN_FRONTEND=noninteractive
 mkdir -p /root/azira-infra
 base64 -d <<'AZIRA_INFRA_PAYLOAD' | tar -xz -C /root/azira-infra

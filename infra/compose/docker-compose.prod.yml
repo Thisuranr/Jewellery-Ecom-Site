@@ -10,11 +10,12 @@
 # Only infra/deploy/deploy.sh changes the running backend. It sets IMAGE_TAG to
 # a commit sha and runs, in order:
 #   docker compose pull medusa
-#   docker compose up -d --wait --no-deps --no-recreate redis cloudflared
+#   docker compose up -d --wait --no-deps [--force-recreate|--no-recreate] redis cloudflared
 #   docker compose --profile migrate run --rm -T migrate
 #   docker compose up -d --no-deps medusa
-# (the second line only starts redis and cloudflared if they are not running,
-# for the first deploy).
+# (the second step starts redis and cloudflared when they are not running, and
+# recreates one whose settings file, redis.env or tunnel.env, changed since its
+# last start; otherwise it leaves them alone).
 #
 # No service publishes a port. cloudflared reaches medusa over the `internal`
 # network; the Cloud Firewall allows inbound SSH only. One medusa process runs
@@ -128,9 +129,10 @@ services:
     volumes:
       - redisdata:/data
     healthcheck:
-      # No password here: an unauthenticated PING answers NOAUTH, which still
-      # proves the server is up and serving.
-      test: ["CMD-SHELL", "redis-cli -h 127.0.0.1 ping 2>&1 | grep -qE 'PONG|NOAUTH'"]
+      # Authenticates with the container's own REDIS_PASSWORD (redis.env, through
+      # REDISCLI_AUTH, so it is not in the process list). Only PONG is healthy:
+      # NOAUTH or WRONGPASS means the password in use is not the one medusa gets.
+      test: ["CMD-SHELL", "REDISCLI_AUTH=\"$$REDIS_PASSWORD\" redis-cli -h 127.0.0.1 ping 2>&1 | grep -qx PONG"]
       interval: 10s
       timeout: 3s
       retries: 5
@@ -168,9 +170,17 @@ networks:
   # No route out. Redis lives only here.
   internal:
     internal: true
-  # Outbound only (no published ports): Supabase's session pooler, R2, Stripe,
-  # Resend, the Cloudflare edge.
-  egress: {}
+  # Outbound only (no published ports): Supabase over IPv6 (the direct
+  # connection db.<ref>.supabase.co has an IPv6 address only), R2, Stripe, Resend,
+  # the Cloudflare edge. The ULA subnet is NATed by Docker (ip6tables), which needs
+  # "ipv6" and "ip6tables" in /etc/docker/daemon.json (infra/vps/files/
+  # docker-daemon.json, installed by bootstrap.sh) and an IPv6 address on the
+  # droplet (create it with IPv6 enabled).
+  egress:
+    enable_ipv6: true
+    ipam:
+      config:
+        - subnet: fd5c:7a1e:94b3:1::/64
 
 volumes:
   redisdata: {}

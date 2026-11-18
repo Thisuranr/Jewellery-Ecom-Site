@@ -5,14 +5,20 @@ name: Deploy storefront
 #
 # Triggers
 # - Push to main that changes apps/storefront/** or pnpm-lock.yaml.
-# - Manual (Actions > Deploy storefront > Run workflow), always.
+# - Manual (Actions > Deploy storefront > Run workflow). Only refs/heads/main
+#   deploys: the job is skipped on any other branch (job-level `if:`), stops in its
+#   first step if started elsewhere, and the `production` environment only lets
+#   main read its secrets. A branch can never reach production.
 # NEXT_PUBLIC_* values are baked into the build, so a deploy is always a rebuild.
 #
-# Secrets (repository secrets): CLOUDFLARE_API_TOKEN, CLOUDFLARE_ACCOUNT_ID,
-# NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY, NEXT_PUBLIC_STRIPE_KEY.
+# Secrets (secrets of the GitHub environment "production"): CLOUDFLARE_API_TOKEN,
+# CLOUDFLARE_ACCOUNT_ID, NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY, NEXT_PUBLIC_STRIPE_KEY
+# (the Stripe key is not needed while CHECKOUT_PAUSED is true).
 # Variables (optional; the defaults are the real Azira values): API_URL
 # (https://api.azira.com.au), BASE_URL (https://azira.com.au), IMAGE_HOST
-# (img.azira.com.au), STORE_NAME (Azira), DEFAULT_REGION (au).
+# (img.azira.com.au), STORE_NAME (Azira), DEFAULT_REGION (au), CHECKOUT_PAUSED
+# (true until Stripe is set up: the bag and checkout show "online payments open
+# soon" instead of the checkout; becomes NEXT_PUBLIC_CHECKOUT_PAUSED in the build).
 #
 # The run refuses while apps/storefront/wrangler.jsonc still has the D1 database_id
 # placeholder: create the tag-cache database first (`wrangler d1 create
@@ -38,15 +44,28 @@ permissions:
 jobs:
   deploy:
     name: Build and deploy to Cloudflare Workers
+    # Only main deploys; the production environment is limited to main as well.
+    if: ${{ github.ref == 'refs/heads/main' }}
+    environment: production
     runs-on: ubuntu-latest
     timeout-minutes: 20
     env:
+      CHECKOUT_PAUSED: ${{ vars.CHECKOUT_PAUSED || 'true' }}
       BACKEND_URL: ${{ vars.API_URL || 'https://api.azira.com.au' }}
       BASE_URL: ${{ vars.BASE_URL || 'https://azira.com.au' }}
       IMAGE_HOST: ${{ vars.IMAGE_HOST || 'img.azira.com.au' }}
       STORE_NAME: ${{ vars.STORE_NAME || 'Azira' }}
       DEFAULT_REGION: ${{ vars.DEFAULT_REGION || 'au' }}
     steps:
+      - name: Only main deploys
+        env:
+          REF: ${{ github.ref }}
+        run: |
+          if [ "$REF" != "refs/heads/main" ]; then
+            echo "::error::The production deploy only runs on main (this run is on ${REF}). Nothing was deployed."
+            exit 1
+          fi
+
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
@@ -69,7 +88,13 @@ jobs:
           [ -n "$CF_TOKEN" ] || { echo "::error::Secret CLOUDFLARE_API_TOKEN is not set."; fail=1; }
           [ -n "$CF_ACCOUNT" ] || { echo "::error::Secret CLOUDFLARE_ACCOUNT_ID is not set."; fail=1; }
           [ -n "$PUBLISHABLE_KEY" ] || { echo "::error::Secret NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY is not set (the publishable API key from the admin: Settings > Publishable API Keys)."; fail=1; }
-          [ -n "$STRIPE_KEY" ] || { echo "::error::Secret NEXT_PUBLIC_STRIPE_KEY is not set (the Stripe publishable key, pk_live_...)."; fail=1; }
+          case "$CHECKOUT_PAUSED" in
+            true|false) ;;
+            *) echo "::error::The variable CHECKOUT_PAUSED must be true or false."; fail=1 ;;
+          esac
+          if [ "$CHECKOUT_PAUSED" != "true" ]; then
+            [ -n "$STRIPE_KEY" ] || { echo "::error::Secret NEXT_PUBLIC_STRIPE_KEY is not set (the Stripe publishable key, pk_live_...). Needed unless CHECKOUT_PAUSED is true."; fail=1; }
+          fi
           case "$STRIPE_KEY" in
             *placeholder*) echo "::error::NEXT_PUBLIC_STRIPE_KEY is still a placeholder."; fail=1 ;;
           esac
@@ -102,6 +127,7 @@ jobs:
           NEXT_PUBLIC_IMAGE_HOST: ${{ env.IMAGE_HOST }}
           NEXT_PUBLIC_STORE_NAME: ${{ env.STORE_NAME }}
           NEXT_PUBLIC_DEFAULT_REGION: ${{ env.DEFAULT_REGION }}
+          NEXT_PUBLIC_CHECKOUT_PAUSED: ${{ env.CHECKOUT_PAUSED }}
         run: pnpm exec opennextjs-cloudflare build
 
       # Fills the R2 and D1 caches, then runs wrangler deploy.
