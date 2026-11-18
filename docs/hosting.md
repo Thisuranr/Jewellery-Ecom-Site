@@ -12,6 +12,7 @@ The site can go live **before** Stripe and Resend exist, in **preview mode** (se
 - [ ] **Resend:** the account exists, the domain `azira.com.au` is verified, `RESEND_API_KEY` is set. (The backend then sends order emails with `EMAIL_TRANSPORT=resend`; the deploy workflow does this by itself whenever `RESEND_API_KEY` is set.)
 - [ ] **Supabase Pro** (US$25 a month) so the database never pauses and has daily backups. The Free plan pauses after a week of inactivity.
 - [ ] **Cloudflare Workers Paid** (US$5 a month). It is needed **before the first storefront deploy** (R2 caches, D1, Durable Objects).
+- [ ] **Shop inbox on azira.com.au:** for receiving alerts, custom-order requests and customer replies. Free: Cloudflare Email Routing (forwards e.g. `orders@azira.com.au` to the Gmail; note it replaces the Titan MX records). Paid: a real mailbox (Titan, or Google Workspace) to read and reply as `hello@azira.com.au`. Sending (`EMAIL_FROM`, via Resend) needs no mailbox. Until then both inbox variables use `azirasydney@gmail.com`.
 - [ ] **Real contact details:** the variables `STORE_NOTIFY_EMAIL`, `CUSTOM_ORDER_EMAIL` and `STORE_ABN` hold real values (not test inboxes).
 - [ ] **Delete or replace the 3 Sample products** with the real catalogue, prices and photos.
 - [ ] **First login:** confirm the admin sign-in works through the tunnel at `https://admin.azira.com.au/app` (the session cookie needs `X-Forwarded-Proto: https`, which the tunnel sends; if the login loops, check that header first).
