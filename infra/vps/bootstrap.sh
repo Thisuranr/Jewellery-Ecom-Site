@@ -428,13 +428,24 @@ step_ssh() {
     log "[dry-run] sshd -t; systemctl reload ssh"
     return 0
   fi
+  # Ubuntu 24.04 starts sshd through ssh.socket (AWS Lightsail images do), so
+  # the privilege separation directory may not exist yet and `sshd -t` fails
+  # without it. Creating it is what ssh.service itself does at start.
+  install -d -m 0755 -o root -g root /run/sshd
   if ! sshd -t; then
     rm -f "${dropin}"
     die "sshd -t rejected the new settings; the drop-in was removed and sshd was not reloaded"
   fi
   if [ "${CHANGED}" = "1" ]; then
-    systemctl reload ssh || systemctl reload sshd
-    log "sshd reloaded. KEEP THIS SESSION OPEN and test a second login as ${ADMIN_USER} before you close it."
+    if systemctl is-active --quiet ssh; then
+      systemctl reload ssh
+    elif systemctl is-active --quiet sshd; then
+      systemctl reload sshd
+    else
+      # Socket-activated: each new connection starts sshd with the new config.
+      log "ssh.service is not running (socket activation); new logins use the new settings"
+    fi
+    log "sshd settings applied. KEEP THIS SESSION OPEN and test a second login as ${ADMIN_USER} before you close it."
   fi
 }
 
