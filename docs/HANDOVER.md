@@ -1,15 +1,18 @@
-# Handover: Azira jewellery store (written 2026-11-20)
+# Handover: Azira jewellery store (updated 2026-11-20, evening)
 
-This file hands the project from a cloud Claude Code session to a new Claude Code session running **on the owner's Windows PC**. It says what exists, how the parts connect, exactly where we are stuck, and what to do next, in order. Read it fully before acting. Then read `CLAUDE.md` (working rules, they apply to you) and `docs/hosting.md` (the owner's hosting guide; the source of truth for every secret, variable and deploy step).
+This file says what exists, how the parts connect, what has been done and what is left. Read it fully before acting. Then read `CLAUDE.md` (working rules, they apply to you) and `docs/hosting.md` (the owner's hosting guide; the source of truth for every secret, variable and deploy step).
 
 ---
 
 ## 0. The 30-second version
 
-- **What:** online jewellery store **Azira** (azira.com.au) for a client in Australia. Medusa v2 backend + Next.js storefront. Prices in AUD, 10% GST included. Stripe is the only payment method, but **Stripe is not set up yet** (waiting on the client's verification), so the site runs in **preview mode** (`CHECKOUT_PAUSED=true`: browse only, checkout refused).
-- **Where it runs:** backend in Docker on an **AWS Lightsail** server in Sydney, reached only through a **Cloudflare Tunnel**; database on **Supabase** (Sydney); images on **Cloudflare R2**; storefront on **Cloudflare Workers** (not deployed yet). Deploys run from **GitHub Actions** when `main` changes.
-- **Where we are:** everything is built and the server is set up. The backend Docker image now **builds successfully** on GitHub (that was the last code bug, fixed in commit `fa1c3a9`). The deploy step fails **only because the GitHub secret `DEPLOY_SSH_KEY` holds the wrong text** (not a private key). Fixing that one secret and re-running the deploy is the very next step.
-- **Why a PC session:** the owner is short on time. The cloud session could not read files on the PC or set GitHub secrets, so the owner had to copy/paste by hand, and that kept going wrong. You run on the PC, so you can do these steps yourself (see section 6).
+- **What:** online jewellery store **Azira** (azira.com.au) for a client in Australia. Medusa v2 backend + Next.js storefront. Prices in AUD, 10% GST included. Stripe is the only payment method, but **Stripe is not set up yet** (waiting on the client's verification), so the site runs in **preview mode** (`CHECKOUT_PAUSED=true`: browse only, checkout refused with 403 `checkout_paused`).
+- **Where it runs:** backend in Docker on an **AWS Lightsail** server in Sydney, reached only through a **Cloudflare Tunnel**; database on **Supabase** (Sydney); images on **Cloudflare R2**; storefront on **Cloudflare Workers** (Workers Paid). Deploys run from **GitHub Actions** when `main` changes.
+- **Where we are: LIVE (preview mode) since 2026-11-20.**
+  - Shop: https://azira.com.au (www redirects to it). 3 sample products, Australia region, AUD.
+  - Store API: https://api.azira.com.au (`/health` says OK). Admin: https://admin.azira.com.au/app, behind Cloudflare Access (emailed code), then the Medusa login. First admin user: `azirasydney@gmail.com` (the owner chose the password).
+  - Backend deploy run `44666178691` (commit `28b74b6`) and storefront run `44667060095` are green.
+- **What's left:** the owner's launch items (section 8): Supabase Pro, Resend, Stripe, real catalogue, backups. A photo upload test (proves R2) was suggested but not yet confirmed.
 
 ---
 
@@ -49,7 +52,9 @@ Commit history, oldest first (`git log --oneline`):
 | `fd9520c` | Docker attempt 1 (`--prefer-offline`), **did not fix the image build** |
 | `fa1c3a9` | **Docker fix that works:** pnpm 10.28.0 (checksum-pinned) + `injectWorkspacePackages: true` + non-legacy `pnpm deploy`. Verified with a local Docker build and on GitHub |
 | `5ab50e8` | Docs/bootstrap: Lightsail instead of DigitalOcean (removed the DigitalOcean monitoring-agent check, updated `docs/hosting.md` and `CLAUDE.md`) |
-| (this commit) | This handover file |
+| `18f4802` | This handover file (first version) |
+| `100ed2f` | `apply-env.sh`: accept GitHub's 2026 installation-token format (`ghs_` JWT, ~520 chars, dots and dashes). **Installed on the server by hand** (server scripts are not updated by deploys) |
+| `28b74b6` | Seed works in preview mode (Stripe attached to the region only when the provider is enabled) and survives a re-run (reuses sales channel, publishable key, store, region). First green deploy |
 
 ### Code map
 
@@ -107,14 +112,14 @@ Cloudflare account id: `7b7865326875e0dea1285c31309d77a4` (also in the R2 endpoi
 - Files on the server: settings `/opt/azira/.env` (root only, written by each deploy); compose `/opt/azira/compose/docker-compose.prod.yml` (+ `/opt/azira/compose/.env`); current image tag `/opt/azira/current_tag` (exists after the first successful deploy); deploy log `/opt/azira/deploy.log`; bootstrap log `/var/log/azira-bootstrap.log`.
 - Windows `ssh-keyscan` fails (unsupported key exchange). Host key capture that worked: `ssh -o KexAlgorithms=curve25519-sha256 -o HostKeyAlgorithms=ssh-ed25519 -o StrictHostKeyChecking=accept-new azadmin@52.62.217.228`, then `Select-String $HOME\.ssh\known_hosts -Pattern 52.62.217.228`. `DEPLOY_KNOWN_HOSTS` is already set from that.
 
-### GitHub configuration (state as seen in the last deploy log)
+### GitHub configuration (state on 2026-11-20)
 
 Secrets live in the **`production` environment** (Settings → Environments → production; limited to the `main` branch). Variables live at the repo level (Settings → Secrets and variables → Actions → Variables). The full list with explanations is in `docs/hosting.md` section 3.
 
-- **Set:** `DEPLOY_SSH_KEY` (**wrong content, see section 5**), `DEPLOY_HOST`, `DEPLOY_KNOWN_HOSTS`, `DATABASE_URL`, `SUPABASE_CA_CERT`, `REDIS_PASSWORD`, `JWT_SECRET`, `COOKIE_SECRET`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `TUNNEL_TOKEN`. Probably set (listed to the owner earlier; verify when the storefront step comes): `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`.
+- **Set and working** (all in the `production` environment): `DEPLOY_SSH_KEY`, `DEPLOY_HOST`, `DEPLOY_KNOWN_HOSTS`, `DATABASE_URL` (direct connection, password tested), `SUPABASE_CA_CERT` (Supabase Root 2021 CA, sha256 `80:70:25:AD:…:CA:FA`, valid to 2031), `REDIS_PASSWORD`, `JWT_SECRET`, `COOKIE_SECRET`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `TUNNEL_TOKEN`, `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`, `NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY` (the seeded "Storefront" key).
+- **No repository-level secrets remain** (the stale copies of `DEPLOY_SSH_KEY` and the two R2 keys were deleted).
 - **Deliberately empty (preview mode):** `STRIPE_API_KEY`, `STRIPE_WEBHOOK_SECRET`, `NEXT_PUBLIC_STRIPE_KEY`, `RESEND_API_KEY`.
-- **Not yet possible:** `NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY` (comes from the admin after the first deploy).
-- **Variables set:** `CHECKOUT_PAUSED=true`, `STORE_NOTIFY_EMAIL`, `CUSTOM_ORDER_EMAIL`; the others use the defaults (Azira URLs). `STORE_ABN` and `EMAIL_REPLY_TO` are empty.
+- **Variables** (in the `production` environment, not repo level): `CHECKOUT_PAUSED=true`, `STORE_NOTIFY_EMAIL`, `CUSTOM_ORDER_EMAIL` (both `azirasydney@gmail.com`); the others use the defaults (Azira URLs). `STORE_ABN` and `EMAIL_REPLY_TO` are empty.
 
 ---
 
@@ -127,107 +132,63 @@ Secrets live in the **`production` environment** (Settings → Environments → 
    - SSH as `deploy@DEPLOY_HOST` (host key checked against `DEPLOY_KNOWN_HOSTS`).
    - Sends the settings. `apply-env.sh` validates them, writes `/opt/azira/.env`, and runs `docker login ghcr.io` with the job's token.
    - Asks for a deploy of the sha. `deploy.sh` pulls the image, runs `medusa db:migrate` in the one-off `migrate` service (the first run also runs the seed scripts), starts `medusa`, waits up to 2 minutes for healthy, and rolls back on failure.
-4. **Deploy storefront** (`deploy-storefront.yml`) runs on pushes touching `apps/storefront/**` or `pnpm-lock.yaml`, or by hand. It failed at its "Check variables and secrets" step on the last push, as **expected**: no publishable key yet, and Workers Paid isn't bought. Ignore that until section 6 step 6.
+4. **Deploy storefront** (`deploy-storefront.yml`) runs on pushes touching `apps/storefront/**` or `pnpm-lock.yaml`, or by hand. It deploys the worker `azira-web` with custom domains `azira.com.au` and `www.azira.com.au`; first green run `44667060095`.
 
 ---
 
-## 5. Exactly where we are stuck
+## 5. The first deploy (2026-11-20): what broke and how it was fixed
 
-- Latest run: **Backend deploy #3**, run id `44644907233`, commit `fa1c3a9`. Image job **green**. Deploy job failed twice (first attempt and one re-run) with:
-  `##[error]The secret does not look like an SSH private key.`
-- **Cause:** the `production` environment secret `DEPLOY_SSH_KEY` holds something other than the private key. The owner's key file is fine: `Select-String -Path $HOME\azira-deploy -Pattern "PRIVATE KEY"` shows BEGIN (line 1) and END (line 7). The bad paste came from an earlier instruction, `notepad $HOME\azira-deploy`; Notepad opens `azira-deploy.txt` for files without an extension. Later clipboard attempts failed because the owner copied the next command from the chat, which replaced the clipboard.
-- Nothing else is known to be wrong. But the steps after the SSH check have **never run against the real server yet**: settings check, registry login, Supabase over IPv6, migrations on Supabase, health check, tunnel. Expect possible first-run issues there; section 7 lists the likely ones.
+The steps after the SSH check had never run against the real server. Each problem only showed once the one before it was fixed. In order:
 
----
+| # | Symptom | Cause | Fix |
+|---|---|---|---|
+| 1 | `The secret does not look like an SSH private key` | `DEPLOY_SSH_KEY` held other text | Set from the file with `gh secret set DEPLOY_SSH_KEY --env production < azira-deploy` (Git Bash, byte-exact) |
+| 2 | `apply-env: refused: GHCR_TOKEN does not look like a GitHub token` | GitHub's 2026 token format (`ghs_` JWT, ~520 chars, dots and dashes) | `100ed2f`, and the new `apply-env.sh` installed on the server by hand (`sudo install -o root -g root -m 0755`) |
+| 3 | `DB_CA_CERT_B64 does not hold a PEM certificate` | `SUPABASE_CA_CERT` held other text | Took the root ("Supabase Root 2021 CA") from the chain the database itself presents (`openssl s_client -starttls postgres -showcerts`), checked it verifies the connection (`Verify return code: 0`), set it with `gh` |
+| 4 | `password authentication failed for user "postgres"` | `DATABASE_URL` still held Supabase's placeholder password | The owner entered the real password in a pop-up that tested it against the database before saving it (section 6) |
+| 5 | `DATABASE_URL must be a postgres:// URL` | Windows PowerShell 5.1 writes a UTF-8 **byte-order mark** into redirected stdin, so the saved value started with an invisible character | Set `[Console]::InputEncoding = New-Object System.Text.UTF8Encoding($false)` before piping; saved again |
+| 6 | Database `ECONNREFUSED` from the server | Supabase **bans an IP** after a few failed password attempts (placeholder + wrong guesses + tests) | The owner removed the ban: Supabase → Database → Settings → **Network Bans** |
+| 7 | Seed: `Payment providers with ids pp_stripe_stripe not found or not enabled` | Seed always attached Stripe; in preview mode Stripe isn't registered | `28b74b6` (verified locally: old seed reproduces the error, new seed completes on the half-seeded database with no duplicates; with Stripe on, the region still gets Stripe) |
+| 8 | Storefront: `Hostname 'azira.com.au' already has externally managed DNS records` | Old Crazy Domains "Sitebeat" parking A records (`103.67.235.120`) for `azira.com.au` and `www` in the **Cloudflare** zone | The owner deleted those two A records in Cloudflare DNS (Crazy Domains' own DNS page is not in effect; nameservers are Cloudflare's) |
 
-## 6. What to do next, in order
-
-### Step 1: put the right private key into the GitHub secret (you can do this yourself)
-
-Preferred: GitHub CLI, run on the PC. It reads the file directly, so nothing goes through the clipboard or the chat.
-
-```powershell
-gh --version            # if missing: winget install --id GitHub.cli
-gh auth status          # if not logged in: gh auth login  (the owner completes the browser step)
-Get-Content $HOME\azira-deploy -Raw | gh secret set DEPLOY_SSH_KEY --env production --repo Thisuranr/Jewellery-Ecom-Site
-gh secret list --env production --repo Thisuranr/Jewellery-Ecom-Site   # DEPLOY_SSH_KEY should show "Updated" just now
-```
-
-Also check for a stale **repository-level** copy (`gh secret list --repo Thisuranr/Jewellery-Ecom-Site`). If `DEPLOY_SSH_KEY` is listed there, delete it (`gh secret delete DEPLOY_SSH_KEY --repo Thisuranr/Jewellery-Ecom-Site`); the environment copy is the one that counts. **Never print the key's contents** to the terminal or chat.
-
-If `gh` can't be used: run `Get-Content $HOME\azira-deploy -Raw | Set-Clipboard`, and the owner pastes straight into GitHub (Settings → Environments → production → `DEPLOY_SSH_KEY` → pencil → Ctrl+V → Update secret), copying nothing else in between.
-
-### Step 2: re-run the backend deploy and watch it
-
-```powershell
-gh run rerun 44644907233 --failed --repo Thisuranr/Jewellery-Ecom-Site
-gh run watch --repo Thisuranr/Jewellery-Ecom-Site       # or: gh run list --workflow backend-deploy.yml
-gh run view <run-id> --log-failed --repo Thisuranr/Jewellery-Ecom-Site   # on failure
-```
-
-(Or start a fresh run: `gh workflow run backend-deploy.yml --ref main --repo Thisuranr/Jewellery-Ecom-Site`.)
-Success = the deploy job is green and `https://api.azira.com.au/health` answers OK.
-If it fails after the SSH step, read `/opt/azira/deploy.log` and `docker compose` logs on the server (section 7).
-
-### Step 3: create the first admin user (on the server)
-
-SSH in as `azadmin`. The admin key has a passphrase, so either the owner types it when `ssh` asks, or the owner loads it into ssh-agent once so you can run ssh non-interactively:
-
-```powershell
-# admin PowerShell, once:  Get-Service ssh-agent | Set-Service -StartupType Manual; Start-Service ssh-agent
-ssh-add $HOME\azira-admin     # owner types the passphrase
-```
-
-Then create an invite, which keeps any password out of shell history:
-
-```bash
-ssh azadmin@52.62.217.228
-cd /opt/azira/compose
-sudo env IMAGE_TAG="$(sudo cat /opt/azira/current_tag)" docker compose -f docker-compose.prod.yml run --rm --no-deps medusa /app/node_modules/.bin/medusa user -e <owner-or-client-email> --invite
-```
-
-That prints an invite token. The owner opens `https://admin.azira.com.au/app/invite?token=<token>`. Cloudflare Access asks for an emailed one-time code first, then the owner sets the admin password.
-Alternative: `... medusa user -e <email> -p <password>`, with the owner typing the password themselves.
-Check the exact flags with `... medusa user --help` if Medusa changed them.
-If `current_tag` doesn't exist, the deploy didn't finish; use the deployed sha instead.
-
-If the admin login loops: the tunnel must send `X-Forwarded-Proto: https`; check `docs/hosting.md` Before-launch notes.
-
-### Step 4: publishable key into GitHub
-
-The seed already created a publishable key. In the admin: Settings → Publishable API Keys, copy the `pk_...` value. Set it without the chat: the owner pastes it into the GitHub `production` environment secret `NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY`, or you run `gh secret set NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY --env production --repo Thisuranr/Jewellery-Ecom-Site` and the owner pastes at the prompt. (It's a public key, so seeing it isn't a security problem, but keep the habit.)
-Also upload one product photo in the admin and check it displays; that proves R2 works.
-
-### Step 5: owner buys Cloudflare Workers Paid (US$5/month)
-
-The storefront deploy needs it (R2 caches, D1, Durable Objects). The owner deferred it; **remind them now**. Also confirm `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` are set (`gh secret list --env production ...`).
-
-### Step 6: deploy the storefront
-
-`gh workflow run deploy-storefront.yml --ref main --repo Thisuranr/Jewellery-Ecom-Site`, then watch it. Check `https://azira.com.au`: it should show the shop, and the bag should say "Online payments open soon". Check that `POST https://api.azira.com.au/store/carts/<id>/complete` returns 403 (preview mode).
-
-### Step 7: report to the owner
-
-Plain words: what's live, what it costs, what's still waiting on them (section 8).
+Not a problem: the storefront build and deploy print `DOQueueHandler … no such Durable Object class is exported`. That comes from wrangler's local platform proxy (used by `initOpenNextCloudflareForDev()` in `next.config.mjs` and by the R2 cache upload), which never loads the worker code. The deployed `.open-next/worker.js` does export `DOQueueHandler` (OpenNext's template), and Cloudflare accepted the `new_sqlite_classes` migration, which it refuses for a class that isn't exported.
 
 ---
 
-## 7. Likely first-deploy problems and where to look
+## 6. Doing things from the owner's PC (what worked)
+
+The PC has `git`, `gh` (logged in as Thisuranr, scopes repo + workflow), Git Bash, Docker Desktop and Node 24. Never print a secret; never ask the owner to paste one into the chat.
+
+- **Setting a secret from a file:** in Git Bash, `gh secret set NAME --env production --repo Thisuranr/Jewellery-Ecom-Site < file` (byte-exact). Avoid piping from Windows PowerShell 5.1 (byte-order mark, see section 5 #5).
+- **Asking the owner for a secret:** a pop-up, not the terminal (the owner found the Terminal tab hard to use). `C:\Program Files\Git\mingw64\bin\git-askpass.exe "<prompt>"` prints what was typed; capture it in a script variable and send it straight on. The DB-password script tested the value on the server (a `node` one-off in the backend image on the `azira_egress` network, with `/opt/azira/certs/supabase-ca.crt`) before saving it, and retried on a wrong password.
+- **SSH as `azadmin` without retyping the passphrase:** the Windows ssh-agent service is disabled. Start Git's agent on a fixed socket (`ssh-agent -D -a /c/Users/thisu/.ssh/azira-agent.sock`, background), then `SSH_AUTH_SOCK=… SSH_ASKPASS=/mingw64/bin/git-askpass.exe SSH_ASKPASS_REQUIRE=force DISPLAY=:0 ssh-add -t 4h /c/Users/thisu/azira-admin` (the owner types the passphrase in the pop-up). Remove the key (`ssh-add -D`) and stop the agent when done.
+- **Admin invite:** `cd /opt/azira/compose && sudo env IMAGE_TAG=$(sudo cat /opt/azira/current_tag) docker compose -f docker-compose.prod.yml run --rm --no-deps -T medusa /app/node_modules/.bin/medusa user -e <email> --invite`. Don't show the token; open `https://admin.azira.com.au/app/invite?token=…` in the owner's browser with `Start-Process`. If the page says "invite token is invalid" with no `?token=` in the address bar, Cloudflare Access dropped the query on its login redirect: open the link again once signed in to Access.
+- **Local check of backend changes:** `docker compose up -d --wait` (Postgres 5433, Redis 6380), an `apps/backend/.env` without Stripe for preview-mode behaviour, `pnpm exec medusa db:migrate` in `apps/backend`. Deploy-script tests: `bash infra/deploy/tests/run.sh` in an `ubuntu:24.04` container (Git Bash has no `flock`).
+- **Watching runs:** poll `gh run view <id> --json status,conclusion` every 20 to 60 s and `sudo tail /opt/azira/deploy.log` on the server; reply to the owner's messages between polls.
+
+---
+
+## 7. If a deploy fails: where to look
 
 - **SSH exit 255:** wrong `DEPLOY_HOST` or `DEPLOY_KNOWN_HOSTS`, or the deploy key doesn't match the one baked into the server. The server has the public key from the owner's `azira-deploy.pub`. Compare with `ssh-keygen -lf $HOME\azira-deploy.pub` on the PC and `sudo ssh-keygen -lf /home/deploy/.ssh/authorized_keys` on the server.
 - **Settings refused by `apply-env.sh`:** the error names the setting. Values must be single-line, with no `$ " ' \` or backticks.
 - **Database:** the direct connection needs IPv6 on the Lightsail instance (dual-stack). Test on the server: `ping -6 -c1 db.jiasljnsxhelgdakjgja.supabase.co`. If IPv6 isn't on, enable IPv6 networking on the Lightsail instance (Networking tab) and allow SSH over IPv6 in its firewall, or fall back to the Supabase **session pooler** string (port 5432, never 6543) in `DATABASE_URL`. A `gin_trgm_ops` error means the extensions aren't in schema `public` (they were created there; see `docs/hosting.md` section 5 step 4).
-- **Unhealthy after start:** `sudo docker compose -f /opt/azira/compose/docker-compose.prod.yml logs medusa --tail 200` (set `IMAGE_TAG` as in step 3 if compose complains). The production check in `production-env.ts` lists every missing setting by name.
+- **Database refuses connections (`ECONNREFUSED`) though IPv6 works:** Supabase has banned the server's IP after failed password attempts. Owner: Supabase → Database → Settings → Network Bans → remove it. Test passwords sparingly.
+- **Migrations fail:** the full log is `/opt/azira/logs/deploy-<time>-<sha>.log` (newest first: `sudo sh -c 'ls -t /opt/azira/logs/deploy-*.log' | head -1`). A failed migration script is re-run on the next deploy, and Medusa keeps what it made, so seed scripts must be safe to re-run.
+- **Unhealthy after start:** `sudo docker compose -f /opt/azira/compose/docker-compose.prod.yml logs medusa --tail 200` (set `IMAGE_TAG` as in section 6, admin invite, if compose complains). The production check in `production-env.ts` lists every missing setting by name.
 - **Tunnel:** `... logs cloudflared`. The public hostnames `api.` and `admin.` point to `http://medusa:9000`.
 - Supabase **Free plan** pauses after about a week of inactivity. If the database is unreachable, check that the project isn't paused (Supabase dashboard → Restore).
 
 ---
 
-## 8. Everything still left (after the server is up)
+## 8. Everything still left
 
 Open items for the owner (they asked to be reminded):
 
-- [ ] Cloudflare **Workers Paid** US$5/month (needed for step 6).
+- [x] Cloudflare **Workers Paid** US$5/month (bought 2026-11-20).
+- [x] First admin user (`azirasydney@gmail.com`).
+- [ ] Upload one product photo in the admin and check it shows on the shop (proves R2 and `img.azira.com.au`).
+- [ ] Real shipping rates (seeded placeholders: Standard $10, Express $18) and the stock location address (placeholder Sydney).
 - [ ] **Supabase Pro** US$25/month (no pausing, daily backups) before real launch.
 - [ ] **Resend** account + verify `azira.com.au` + `RESEND_API_KEY` (order and password-reset emails; until then emails only go to the server log).
 - [ ] **Stripe**, after the client's verification: live keys `STRIPE_API_KEY`, `NEXT_PUBLIC_STRIPE_KEY`; webhook `https://api.azira.com.au/hooks/payment/stripe_stripe` → `STRIPE_WEBHOOK_SECRET`. Then set `CHECKOUT_PAUSED=false`, redeploy both, add Stripe to the Australia region in the admin (Settings → Regions; it was seeded without a payment provider in preview mode), place a low-value test order and refund it. Afterpay/Zip later through Stripe.
@@ -241,7 +202,8 @@ Small developer items (batch them; `CLAUDE.md` rule 6):
 
 - [ ] Rename the workflow job "Deploy to the droplet" → "Deploy to the server", and other "droplet" wording in `.github/workflows/*.yml` and `infra/` comments. Note: editing `backend-deploy.yml` on `main` triggers a deploy.
 - [ ] Remaining lint warnings (`pnpm lint`).
-- [ ] Optional: copy the updated `infra/vps/bootstrap.sh` onto the server (`sudo bash infra/vps/bootstrap.sh install-files`). Not needed.
+- [ ] Optional: copy the updated `infra/vps/bootstrap.sh` onto the server (`sudo bash infra/vps/bootstrap.sh install-files`). Not needed. (`/opt/azira/bin/apply-env.sh` on the server already matches `100ed2f`; the server's `/root/azira-infra` copy is older.)
+- [ ] Next.js warns that the `middleware` file convention is deprecated (use `proxy`); migrate when convenient.
 - [ ] Commit the sh-compatible Lightsail launch-script wrapper into `infra/vps/` (it was only given in chat; `docs/hosting.md` section 5 step 6 describes it).
 
 Later product work (backend and admin first, UI polish last, per `CLAUDE.md`): the client still has to pick a design direction (`docs/research/ui-direction.md`).
