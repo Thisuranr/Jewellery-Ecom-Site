@@ -574,6 +574,15 @@ expect "apply-env: the output shows no secret value" \
 run_env "$(good_payload)"
 expect "apply-env: running it twice works" bash -c '[[ $0 == 0 ]]' "$RC"
 
+# GitHub's newer installation tokens (the Actions GITHUB_TOKEN since 2026) are
+# ghs_-prefixed JWTs of about 520 characters with dots and dashes. Built here
+# rather than written out, so no token-shaped literal sits in the repository.
+new_env_case
+long_tok="ghs_$(printf 'a%.0s' $(seq 1 200)).$(printf 'b-%.0s' $(seq 1 100)).$(printf 'c_%.0s' $(seq 1 60))"
+run_env "$(good_payload | sed "s/^GHCR_TOKEN=.*/GHCR_TOKEN=$long_tok/")"
+expect "apply-env: a long JWT-style GitHub token is accepted and used for the login" \
+  bash -c '[[ $0 == 0 ]] && grep -q "^login-token-length=$2$" "$1"' "$RC" "$STUB_LOG" "${#long_tok}"
+
 # The login is optional.
 new_env_case
 run_env "$(good_payload | grep -v '^GHCR_')"
@@ -645,6 +654,9 @@ refuse_env "a CA that is not base64" "$(good_payload | sed 's#^DB_CA_CERT_B64=.*
 refuse_env "a CA that is not a certificate" "$(good_payload | sed "s#^DB_CA_CERT_B64=.*#DB_CA_CERT_B64=$(printf 'hello' | base64)#")" "DB_CA_CERT_B64"
 refuse_env "a bad tunnel token" "$(good_payload | sed 's/^TUNNEL_TOKEN=.*/TUNNEL_TOKEN=short/')" "TUNNEL_TOKEN"
 refuse_env "a GHCR_TOKEN without a user" "$(good_payload | grep -v '^GHCR_USER=')" "GHCR_USER"
+refuse_env "a short GHCR_TOKEN" "$(good_payload | sed 's/^GHCR_TOKEN=.*/GHCR_TOKEN=ghs_short/')" "GHCR_TOKEN"
+refuse_env "a GHCR_TOKEN with a slash" "$(good_payload | sed 's#^GHCR_TOKEN=.*#GHCR_TOKEN=ghs_abcdefghijklmnop/qrstuvwxyz#')" "GHCR_TOKEN"
+refuse_env "a GHCR_TOKEN with a space inside" "$(good_payload | sed 's/^GHCR_TOKEN=.*/GHCR_TOKEN=ghs_abcdefghij klmnopqrstuvwxyz/')" "GHCR_TOKEN"
 refuse_env "too many lines" "$(good_payload; for i in $(seq 1 130); do echo "X$i=1"; done)"
 refuse_env "an oversized payload" "$(good_payload; head -c 70000 /dev/zero | tr '\0' 'a')"
 

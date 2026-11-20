@@ -192,7 +192,9 @@ if [[ -n ${VALUE[GHCR_TOKEN]-} ]]; then
   [[ ${VALUE[GHCR_USER]-} =~ ^[A-Za-z0-9-]{1,39}$ ]] || fail "GHCR_USER must be a GitHub user name when GHCR_TOKEN is given"
   user_lc=${VALUE[GHCR_USER],,}
   [[ $user_lc == "$PIN_OWNER" ]] || fail "GHCR_USER is not the registry user this server is pinned to"
-  [[ ${VALUE[GHCR_TOKEN]} =~ ^[A-Za-z0-9_]{20,255}$ ]] || fail "GHCR_TOKEN does not look like a GitHub token"
+  # GitHub's installation tokens (the Actions GITHUB_TOKEN included) are ghs_-prefixed
+  # JWTs since 2026: about 520 characters, variable length, with dots and dashes.
+  [[ ${VALUE[GHCR_TOKEN]} =~ ^[A-Za-z0-9_.-]{20,4096}$ ]] || fail "GHCR_TOKEN does not look like a GitHub token"
 fi
 
 # The CA: base64 of a PEM file with at least one certificate that openssl reads.
