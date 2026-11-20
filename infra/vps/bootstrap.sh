@@ -2,8 +2,8 @@
 # =====================================================================
 # VPS bootstrap for Azira (azira.com.au)
 #
-# One-time, idempotent setup of the production droplet (Ubuntu 24.04 LTS, 2 GB,
-# DigitalOcean Sydney SYD1). Two ways to run it:
+# One-time, idempotent setup of the production server (Ubuntu 24.04 LTS, 2 GB,
+# AWS Lightsail Sydney). Two ways to run it:
 #
 #  1. As cloud-init user-data (the normal way). `infra/vps/make-user-data.sh`
 #     prints a self-contained shell script (the infra/ folder is packed inside
@@ -471,17 +471,6 @@ step_systemd_units() {
   log "the backup timer stays off until you enable it (docs/hosting.md, Backups): systemctl enable --now azira-backup.timer"
 }
 
-step_agent() {
-  step "DigitalOcean monitoring agent"
-  if dry; then
-    log "[dry-run] check systemctl is-active do-agent"
-  elif systemctl is-active --quiet do-agent; then
-    log "do-agent is running"
-  else
-    warn "do-agent is not running: DigitalOcean alerts will not work. Tick 'Monitoring' when creating the droplet (docs/hosting.md)"
-  fi
-}
-
 # ---------------------------------------------------------------------- check
 
 PASS=0
@@ -546,7 +535,6 @@ do_check() {
       printf '  skip  %s (not created yet)\n' "${SHOP_DIR}/${f}"
     fi
   done
-  if systemctl is-active --quiet do-agent; then ok "do-agent running"; else bad "do-agent not running"; fi
   printf '\n%s passed, %s failed\n' "${PASS}" "${FAIL}"
   [ "${FAIL}" -eq 0 ]
 }
@@ -584,7 +572,6 @@ main() {
       step_fail2ban
       step_unattended
       step_systemd_units
-      step_agent
       summary
       ;;
     install-files)
