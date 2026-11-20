@@ -9,3 +9,8 @@ allowBuilds:
 # pnpm 10.x
 onlyBuiltDependencies:
   - "@medusajs/telemetry"
+
+# Needed for `pnpm deploy` (the backend Docker image) in pnpm 10: deploy then
+# uses the shared lockfile. No package here depends on another workspace
+# package, so this changes nothing else.
+injectWorkspacePackages: true

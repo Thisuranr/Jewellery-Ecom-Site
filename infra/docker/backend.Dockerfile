@@ -21,7 +21,7 @@
 ARG NODE_IMAGE=node:22.23.4-bookworm-slim@sha256:4b150b48b4116e2a22f2c39cc27025fbf4f153e2078fd3b14d159fdb5c7279da
 
 # ---------------------------------------------------------------------------
-# pnpm: Node plus pnpm 10.11.1 (root package.json "packageManager"), installed
+# pnpm: Node plus pnpm 10.28.0 (root package.json "packageManager"), installed
 # by corepack and checked against the npm registry's sha512 for that tarball.
 # ---------------------------------------------------------------------------
 FROM ${NODE_IMAGE} AS pnpm
@@ -30,7 +30,7 @@ ENV CI=true \
     COREPACK_HOME=/opt/corepack \
     MEDUSA_DISABLE_TELEMETRY=true
 RUN corepack enable pnpm \
- && corepack install -g pnpm@10.11.1+sha512.e519b9f7639869dc8d5c3c5dfef73b3f091094b0a006d7317353c72b124e80e1afd429732e28705ad6bfa1ee879c1fce46c128ccebd3192101f43dd67c667912 \
+ && corepack install -g pnpm@10.28.0+sha512.05df71d1421f21399e053fde567cea34d446fa02c76571441bfc1c7956e98e363088982d940465fd34480d4d90a0668bc12362f8aa88000a64e83d0b0e47be48 \
  && pnpm --version
 WORKDIR /repo
 
@@ -59,20 +59,17 @@ WORKDIR /repo/apps/backend
 RUN test -n "${ADMIN_BACKEND_URL}" || { echo "build arg ADMIN_BACKEND_URL is required" >&2; exit 1; } \
  && MEDUSA_BACKEND_URL="${ADMIN_BACKEND_URL}" ./node_modules/.bin/medusa build
 
-# Production dependencies only, from the same lockfile and store (plan Unknown 9).
-# pnpm 10.11.1 refuses `deploy` without inject-workspace-packages=true
-# (ERR_PNPM_DEPLOY_NONINJECTED_WORKSPACE); --legacy selects the pnpm 9 behaviour,
-# which installs the deployed project from the shared workspace lockfile.
+# Production dependencies only, from the same lockfile and store.
+# pnpm 10 deploys from the shared workspace lockfile when
+# injectWorkspacePackages is true (pnpm-workspace.yaml). Do not use --legacy:
+# (seen in pnpm 10.11.1) it runs a plain workspace install and leaves /app/node_modules
+# empty (exit 0), which the `test -x` below catches. --prefer-offline lets it
+# fetch registry metadata, which `pnpm fetch` does not cache.
 # Deployed straight to /app so the .bin shims' paths stay valid in the runtime
-# stage. deploy also copies the TypeScript sources into /app; the runtime stage
-# takes only /app/node_modules from here, and the compiled app from
-# .medusa/server.
-# --prefer-offline, not --offline: the legacy deploy re-resolves the project
-# and needs registry metadata, which `pnpm fetch` does not cache, so --offline
-# fails on a clean builder with ERR_PNPM_NO_OFFLINE_META. Package files still
-# come from /pnpm/store; only metadata is fetched.
+# stage. The runtime stage takes only /app/node_modules from here, and the
+# compiled app from .medusa/server.
 WORKDIR /repo
-RUN pnpm --filter @dtc/backend deploy --prod --legacy --prefer-offline --store-dir /pnpm/store /app \
+RUN pnpm --filter @dtc/backend deploy --prod --prefer-offline --store-dir /pnpm/store /app \
  && test -x /app/node_modules/.bin/medusa
 
 # ---------------------------------------------------------------------------
