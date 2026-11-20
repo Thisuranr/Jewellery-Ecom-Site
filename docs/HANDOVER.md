@@ -230,7 +230,7 @@ Open items for the owner (they asked to be reminded):
 - [ ] Cloudflare **Workers Paid** US$5/month (needed for step 6).
 - [ ] **Supabase Pro** US$25/month (no pausing, daily backups) before real launch.
 - [ ] **Resend** account + verify `azira.com.au` + `RESEND_API_KEY` (order and password-reset emails; until then emails only go to the server log).
-- [ ] **Stripe**, after the client's verification: live keys `STRIPE_API_KEY`, `NEXT_PUBLIC_STRIPE_KEY`; webhook `https://api.azira.com.au/hooks/payment/stripe_stripe` → `STRIPE_WEBHOOK_SECRET`. Then set `CHECKOUT_PAUSED=false`, redeploy both, place a low-value test order and refund it. Afterpay/Zip later through Stripe.
+- [ ] **Stripe**, after the client's verification: live keys `STRIPE_API_KEY`, `NEXT_PUBLIC_STRIPE_KEY`; webhook `https://api.azira.com.au/hooks/payment/stripe_stripe` → `STRIPE_WEBHOOK_SECRET`. Then set `CHECKOUT_PAUSED=false`, redeploy both, add Stripe to the Australia region in the admin (Settings → Regions; it was seeded without a payment provider in preview mode), place a low-value test order and refund it. Afterpay/Zip later through Stripe.
 - [ ] Shop inbox on azira.com.au (Cloudflare Email Routing for free, or a mailbox), then update the two inbox variables.
 - [ ] `STORE_ABN` (shown on tax invoices).
 - [ ] Replace the 3 sample products with the real catalogue.

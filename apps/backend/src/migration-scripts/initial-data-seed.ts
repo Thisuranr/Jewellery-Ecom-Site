@@ -67,72 +67,124 @@ export default async function initial_data_seed({
 
   const storeName = process.env.STORE_NAME || "Azira";
 
+  // Medusa does not wrap a migration script in one transaction: a run that
+  // stops part way keeps what it made, and the script runs again on the next
+  // `db:migrate`. So the steps up to the region reuse what already exists
+  // instead of making a second sales channel, publishable key or store.
+  const salesChannelService = container.resolve(Modules.SALES_CHANNEL);
+  const apiKeyService = container.resolve(Modules.API_KEY);
+  const storeService = container.resolve(Modules.STORE);
+  const regionService = container.resolve(Modules.REGION);
+  const paymentService = container.resolve(Modules.PAYMENT);
+
   logger.info("Seeding store data...");
-  const {
-    result: [defaultSalesChannel],
-  } = await createSalesChannelsWorkflow(container).run({
-    input: {
-      salesChannelsData: [
-        { name: "Online Store", description: "The website" },
-      ],
-    },
+  let [defaultSalesChannel] = await salesChannelService.listSalesChannels({
+    name: "Online Store",
   });
+  if (!defaultSalesChannel) {
+    ({
+      result: [defaultSalesChannel],
+    } = await createSalesChannelsWorkflow(container).run({
+      input: {
+        salesChannelsData: [
+          { name: "Online Store", description: "The website" },
+        ],
+      },
+    }));
+  }
+
+  let [publishableApiKey] = await apiKeyService.listApiKeys({
+    title: "Storefront",
+    type: "publishable",
+  });
+  if (!publishableApiKey) {
+    ({
+      result: [publishableApiKey],
+    } = await createApiKeysWorkflow(container).run({
+      input: {
+        api_keys: [
+          {
+            title: "Storefront",
+            type: "publishable",
+            created_by: "",
+          },
+        ],
+      },
+    }));
+  }
 
   const {
-    result: [publishableApiKey],
-  } = await createApiKeysWorkflow(container).run({
-    input: {
-      api_keys: [
-        {
-          title: "Storefront",
-          type: "publishable",
-          created_by: "",
-        },
-      ],
-    },
+    data: [keyWithChannels],
+  } = await query.graph({
+    entity: "api_key",
+    fields: ["id", "sales_channels.id"],
+    filters: { id: publishableApiKey.id },
   });
+  const keyHasChannel = (keyWithChannels?.sales_channels ?? []).some(
+    (sc: { id: string } | null) => sc?.id === defaultSalesChannel.id
+  );
+  if (!keyHasChannel) {
+    await linkSalesChannelsToApiKeyWorkflow(container).run({
+      input: {
+        id: publishableApiKey.id,
+        add: [defaultSalesChannel.id],
+      },
+    });
+  }
 
-  await linkSalesChannelsToApiKeyWorkflow(container).run({
-    input: {
-      id: publishableApiKey.id,
-      add: [defaultSalesChannel.id],
-    },
-  });
-
-  await createStoresWorkflow(container).run({
-    input: {
-      stores: [
-        {
-          name: storeName,
-          supported_currencies: [
-            { currency_code: "aud", is_default: true, is_tax_inclusive: true },
-          ],
-          default_sales_channel_id: defaultSalesChannel.id,
-        },
-      ],
-    },
-  });
+  const [existingStore] = await storeService.listStores({ name: storeName });
+  if (!existingStore) {
+    await createStoresWorkflow(container).run({
+      input: {
+        stores: [
+          {
+            name: storeName,
+            supported_currencies: [
+              { currency_code: "aud", is_default: true, is_tax_inclusive: true },
+            ],
+            default_sales_channel_id: defaultSalesChannel.id,
+          },
+        ],
+      },
+    });
+  }
 
   logger.info("Seeding region data...");
-  const { result: regionResult } = await createRegionsWorkflow(container).run({
-    input: {
-      regions: [
-        {
-          name: "Australia",
-          currency_code: "aud",
-          countries: ["au"],
-          // Stripe only. The system "manual" provider is left off on purpose
-          // so no order can be placed without paying.
-          payment_providers: ["pp_stripe_stripe"],
-          automatic_taxes: true,
-          // Australian prices are shown and stored including GST.
-          is_tax_inclusive: true,
-          metadata: DEFAULT_REGION_STORE_POLICIES,
-        },
-      ],
-    },
+  // Stripe only. The system "manual" provider is left off on purpose so no
+  // order can be placed without paying. Stripe is registered only when
+  // STRIPE_API_KEY is set (medusa-config.ts); in preview mode it is not, so
+  // the region starts with no payment provider (checkout is refused anyway,
+  // CHECKOUT_PAUSED) and Stripe is added to it in the admin when the keys
+  // arrive (docs/hosting.md, Before launch).
+  const stripeProviders = await paymentService.listPaymentProviders({
+    id: ["pp_stripe_stripe"],
+    is_enabled: true,
   });
-  const region = regionResult[0];
+  const stripeEnabled = stripeProviders.length > 0;
+  if (!stripeEnabled) {
+    logger.warn(
+      'Stripe is not configured: the "Australia" region gets no payment provider for now. Add Stripe to it in the admin (Settings, Regions) once STRIPE_API_KEY is set.'
+    );
+  }
+  const [existingRegion] = await regionService.listRegions({ name: "Australia" });
+  if (!existingRegion) {
+    await createRegionsWorkflow(container).run({
+      input: {
+        regions: [
+          {
+            name: "Australia",
+            currency_code: "aud",
+            countries: ["au"],
+            ...(stripeEnabled ? { payment_providers: ["pp_stripe_stripe"] } : {}),
+            automatic_taxes: true,
+            // Australian prices are shown and stored including GST.
+            is_tax_inclusive: true,
+            metadata: DEFAULT_REGION_STORE_POLICIES,
+          },
+        ],
+      },
+    });
+  }
   logger.info("Finished seeding regions.");
 
   logger.info("Seeding tax regions...");
