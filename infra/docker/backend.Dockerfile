@@ -67,8 +67,12 @@ RUN test -n "${ADMIN_BACKEND_URL}" || { echo "build arg ADMIN_BACKEND_URL is req
 # stage. deploy also copies the TypeScript sources into /app; the runtime stage
 # takes only /app/node_modules from here, and the compiled app from
 # .medusa/server.
+# --prefer-offline, not --offline: the legacy deploy re-resolves the project
+# and needs registry metadata, which `pnpm fetch` does not cache, so --offline
+# fails on a clean builder with ERR_PNPM_NO_OFFLINE_META. Package files still
+# come from /pnpm/store; only metadata is fetched.
 WORKDIR /repo
-RUN pnpm --filter @dtc/backend deploy --prod --legacy --offline --store-dir /pnpm/store /app \
+RUN pnpm --filter @dtc/backend deploy --prod --legacy --prefer-offline --store-dir /pnpm/store /app \
  && test -x /app/node_modules/.bin/medusa
 
 # ---------------------------------------------------------------------------
